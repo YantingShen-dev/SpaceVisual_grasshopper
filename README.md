@@ -93,16 +93,6 @@ Outputs `dist\spacevisual-X.Y.Z-rh7_0-any.yak`. To publish:
 
 ## Author
 
-POLY LAB — *contact info / website goes here*
+POLY LAB — Ting — *contact info / website goes here*
 
 ---
-
-## Acknowledgements
-
-The algorithms in this plugin are reimplementations of techniques developed in the visibility-analysis and space-syntax literature:
-
-- Isovist analysis (Benedikt 1979)
-- Visibility Graph Analysis (Turner et al. 2001)
-- Sky View Factor (Oke 1981; Watson & Johnson 1987)
-- Lazy Theta* path smoothing (Nash et al. 2010)
-# SpaceVisual_grasshopper
