@@ -105,3 +105,4 @@ The algorithms in this plugin are reimplementations of techniques developed in t
 - Visibility Graph Analysis (Turner et al. 2001)
 - Sky View Factor (Oke 1981; Watson & Johnson 1987)
 - Lazy Theta* path smoothing (Nash et al. 2010)
+# SpaceVisual_grasshopper
