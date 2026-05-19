@@ -1,0 +1,31 @@
+# .NET build output
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.sln.docstates
+*.sln.metaproj
+*.sln.metaproj.tmp
+*.pdb
+*.cache
+
+# Rhino / Grasshopper artifacts
+*.gha.bak
+*.ghuser.bak
+*.3dm.bak
+*.3dmbak
+*.rhl
+
+# Yak packaging artifacts
+*.yak
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store

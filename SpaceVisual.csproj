@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Target .NET Framework 4.8 so the single .gha loads in both Rhino 7 and Rhino 8.
+         Rhino 8 supports both .NET 7 and .NET Framework 4.8 plugins; sticking to net48
+         is the simplest way to ship one build to both. -->
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>false</UseWindowsForms>
+    <UseWpf>false</UseWpf>
+
+    <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <Title>Space Visual</Title>
+    <Authors>POLY LAB</Authors>
+    <Company>POLY LAB</Company>
+    <Copyright>Copyright (c) POLY LAB 2026</Copyright>
+    <Description>Visibility and sightline analysis components for Grasshopper. 2D/3D Isovist, VGA metrics, visibility paths, surface visibility.</Description>
+
+    <RootNamespace>SpaceVisual</RootNamespace>
+    <AssemblyName>SpaceVisual</AssemblyName>
+    <TargetExt>.gha</TargetExt>
+    <NoWarn>NU1701;NU1702</NoWarn>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <PlatformTarget>x64</PlatformTarget>
+
+    <!-- Auto-copy SpaceVisual.gha to %APPDATA%\Grasshopper\Libraries on Debug build.
+         Opt out with: dotnet build -p:AutoDeployToGrasshopper=false -->
+    <AutoDeployToGrasshopper Condition="'$(AutoDeployToGrasshopper)' == ''">true</AutoDeployToGrasshopper>
+    <GrasshopperLibrariesPath>$(APPDATA)\Grasshopper\Libraries\</GrasshopperLibrariesPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pin to the earliest Rhino 7 SDK (7.0 SR0, Nov 2020) so the .gha loads in ALL
+         Rhino 7 service releases (SR0..SR latest) AND in Rhino 8. Newer SDK versions
+         would require a minimum SR on the user side. -->
+    <PackageReference Include="Grasshopper" Version="7.0.20314.3001" IncludeAssets="compile;build" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="icon\*.png">
+      <LogicalName>icons.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <Target Name="DeployGha"
+          AfterTargets="Build"
+          Condition=" '$(AutoDeployToGrasshopper)' == 'true' AND '$(Configuration)' == 'Debug' AND Exists('$(GrasshopperLibrariesPath)') ">
+    <!-- ContinueOnError + Retry=0 so a Rhino-locked .gha doesn't fail the build;
+         user just sees a warning and knows to close Rhino if they want auto-deploy. -->
+    <Copy SourceFiles="$(TargetPath)"
+          DestinationFolder="$(GrasshopperLibrariesPath)"
+          SkipUnchangedFiles="false"
+          ContinueOnError="WarnAndContinue"
+          Retries="0" />
+    <Message Text="Deployed $(TargetFileName) → $(GrasshopperLibrariesPath)" Importance="high" />
+  </Target>
+
+</Project>
