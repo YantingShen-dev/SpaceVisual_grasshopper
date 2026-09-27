@@ -1,0 +1,10 @@
+.DS_Store
+obj/
+dist/
+bin/*
+!bin/Debug/
+!bin/Mac/
+bin/Mac/*
+!bin/Mac/Release/
+bin/Mac/Release/*
+!bin/Mac/Release/SpaceVisual.gha

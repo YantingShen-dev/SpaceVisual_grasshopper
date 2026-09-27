@@ -1,9 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Target .NET Framework 4.8 so the single .gha loads in both Rhino 7 and Rhino 8.
-         Rhino 8 supports both .NET 7 and .NET Framework 4.8 plugins; sticking to net48
-         is the simplest way to ship one build to both. -->
+    <!-- net48 targets Rhino 7, including Mono on Mac.
+         See README.md for platform-specific compatibility and build instructions. -->
     <TargetFramework>net48</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
@@ -26,7 +25,7 @@
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <PlatformTarget>x64</PlatformTarget>
+    <PlatformTarget>AnyCPU</PlatformTarget>
 
     <!-- Auto-copy SpaceVisual.gha to %APPDATA%\Grasshopper\Libraries on Debug build.
          Opt out with: dotnet build -p:AutoDeployToGrasshopper=false -->
@@ -42,6 +41,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="tests/**/*.cs" />
     <EmbeddedResource Include="icon\*.png">
       <LogicalName>icons.%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
@@ -49,7 +49,7 @@
 
   <Target Name="DeployGha"
           AfterTargets="Build"
-          Condition=" '$(AutoDeployToGrasshopper)' == 'true' AND '$(Configuration)' == 'Debug' AND Exists('$(GrasshopperLibrariesPath)') ">
+          Condition=" '$(OS)' == 'Windows_NT' AND '$(AutoDeployToGrasshopper)' == 'true' AND '$(Configuration)' == 'Debug' AND Exists('$(GrasshopperLibrariesPath)') ">
     <!-- ContinueOnError + Retry=0 so a Rhino-locked .gha doesn't fail the build;
          user just sees a warning and knows to close Rhino if they want auto-deploy. -->
     <Copy SourceFiles="$(TargetPath)"
