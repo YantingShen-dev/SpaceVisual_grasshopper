@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.3 — 2026-10-20
+
+- Restored View Grid outputs to Mesh and Points; removed Cells. Points retain per-cell geometry for downstream meshes.
+- Isovist 2D adds Mesh as its first output and appends `_Boundary` before a final boolean `tol`. Radius/Count remain in their existing input positions. Its mesh, polygons and metrics use the same filtered viewpoints.
+- Graph2D also appends `tol` (default false). Both components now exclude points on boundaries and obstacle curves by default. Setting true includes contour contacts, while solid obstacle interiors and points outside the outer boundary remain excluded. Geometric contact tolerance is fixed at 1e-6 model units; this input is a boolean policy, not a distance.
+- View Grid Triangle curve samples carry triangle topology. Filtered meshes preserve one vertex per retained analysis value and cull triangles with missing vertices or blocked edges. Triangle mesh/surface inputs continue to use one face per retained face-center sample.
+- Contact viewpoints cannot see through a solid by ignoring an origin intersection: Isovist checks initial ray direction, and Graph2D checks chords between contact points.
+- Build Graph 2D removes Grid Mesh input and moves Mesh to the first output. Connect grid Points directly to preserve source topology; replace saved components and reconnect by name.
+- Downloads now use `SpaceVisual_0.2.3.gha`; future packages derive the filename from the project version.
+- Release binary is byte-identical to the installed 0.2.3 candidate. Compilation passed with zero warnings/errors. Automated Rhino runtime regressions remain pending; no new runtime pass is claimed.
+- 0.2.2 was an unpublished intermediate prototype and is superseded by this version.
+
+
 ## 0.2.1 — 2026-10-19
 
 - Build Graph 2D accepts an optional original face-sampled `_Grid Mesh` (`_M`) and outputs `Filtered Mesh` (`M`). Retained faces follow the same indices as filtered graph points and VGA values. Existing input/output positions are unchanged.

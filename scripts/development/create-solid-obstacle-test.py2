@@ -66,18 +66,18 @@ def run():
             for p in points:inputs.PersistentData.Append(GH_Point(p))
             graph=component('SV_BuildGraph2D',450,y+75)
             graph.Params.Input[0].AddSource(inputs);graph.Params.Input[1].AddSource(obstacles);graph.Params.Input[2].AddSource(outer)
-            summary=panel('',660,y,480,55);summary.AddSource(graph.Params.Output[0])
-            lines=add(Param_Curve(),720,y+90,False);lines.NickName='Visible lines';lines.AddSource(graph.Params.Output[1])
-            filtered=add(Param_Point(),720,y+145,False);filtered.NickName='Filtered points';filtered.AddSource(graph.Params.Output[2])
-            metrics=component('SV_VGAMetrics2D',940,y+150);metrics.Params.Input[0].AddSource(graph.Params.Output[0])
+            summary=panel('',660,y,480,55);summary.AddSource(graph.Params.Output[1])
+            lines=add(Param_Curve(),720,y+90,False);lines.NickName='Visible lines';lines.AddSource(graph.Params.Output[2])
+            filtered=add(Param_Point(),720,y+145,False);filtered.NickName='Filtered points';filtered.AddSource(graph.Params.Output[3])
+            metrics=component('SV_VGAMetrics2D',940,y+150);metrics.Params.Input[0].AddSource(graph.Params.Output[1])
             title='A | Open wall segments: interior points remain' if k==0 else 'B | Closed solid obstacle: interior cleared'
             panel(title,100,y-65,1040,55)
             doc.NewSolution(True)
             errors=list(graph.RuntimeMessages(GH_RuntimeMessageLevel.Error))+list(metrics.RuntimeMessages(GH_RuntimeMessageLevel.Error))
             if errors:raise Exception(str(errors))
-            g=list(graph.Params.Output[0].VolatileData.AllData(True))[0].Value
-            kept=[v.Value for v in graph.Params.Output[3].VolatileData.AllData(True)]
-            resultlines=[v.ScriptVariable() for v in graph.Params.Output[1].VolatileData.AllData(True)]
+            g=list(graph.Params.Output[1].VolatileData.AllData(True))[0].Value
+            kept=[v.Value for v in graph.Params.Output[4].VolatileData.AllData(True)]
+            resultlines=[v.ScriptVariable() for v in graph.Params.Output[2].VolatileData.AllData(True)]
             inside=[i for i,p in enumerate(g.Points) if polys[0].Contains(p,Plane.WorldXY,1e-6)!=Rhino.Geometry.PointContainment.Outside]
             if k==1 and inside:raise Exception('Solid obstacle still contains graph points')
             if metrics.Params.Output[4].VolatileDataCount!=len(kept):raise Exception('VGA point order/count mismatch')
@@ -104,7 +104,7 @@ def run():
             reopened.Document.Enabled=True;reopened.Document.NewSolution(True)
             for case in report['cases']:
                 node=next(o for o in reopened.Document.Objects if str(o.InstanceGuid)==case['instance'])
-                if node.Params.Output[2].VolatileDataCount!=case['points'] or node.Params.Output[1].VolatileDataCount!=case['edges']:raise Exception('Reopened graph differs')
+                if node.Params.Output[3].VolatileDataCount!=case['points'] or node.Params.Output[2].VolatileDataCount!=case['edges']:raise Exception('Reopened graph differs')
             report['reopened_with_registered_build']=True
             Grasshopper.Instances.DocumentServer.AddDocument(reopened.Document)
             if Grasshopper.Instances.ActiveCanvas is not None:Grasshopper.Instances.ActiveCanvas.Document=reopened.Document

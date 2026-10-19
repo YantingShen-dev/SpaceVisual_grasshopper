@@ -1,0 +1,11 @@
+#! python 2
+# -*- coding: utf-8 -*-
+"""Run manually inside Rhino 8 after building the local candidate. No installation."""
+import os
+import xml.etree.ElementTree as ET
+root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+version = ET.parse(os.path.join(root, 'SpaceVisual.csproj')).find('.//Version').text
+candidate = os.path.join(root, 'artifacts', 'candidate', version, 'SpaceVisual.gha')
+if not os.path.isfile(candidate): raise Exception('Build the local candidate first: ' + candidate)
+runner = os.path.join(root, 'tests', 'regression', 'run-production-regression.py2')
+execfile(runner, {'__file__': runner, 'SPACEVISUAL_CANDIDATE_PATH': candidate})

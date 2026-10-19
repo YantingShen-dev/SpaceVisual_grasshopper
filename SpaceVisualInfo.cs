@@ -22,8 +22,8 @@ namespace SpaceVisual
 
         public override string AuthorContact => "";
 
-        public override string Version => "0.2.1";
+        public override string Version => "0.2.3";
 
-        public override string AssemblyVersion => "0.2.1.0";
+        public override string AssemblyVersion => "0.2.3.0";
     }
 }

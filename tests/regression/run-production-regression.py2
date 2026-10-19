@@ -7,10 +7,11 @@ they never register a second production assembly or change the active canvas.
 Reports are written under artifacts/validation, separately from test-build reports.
 """
 import os
+import xml.etree.ElementTree as ET
 root=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 output=os.path.join(root,'artifacts','validation')
 if not os.path.isdir(output):os.makedirs(output)
-candidate=os.path.join(root,'bin','Release','SpaceVisual.gha')
-for name,report in [('graph-point-filter-regression.py2','production-graph-regression.json'),('visibility-2d-regression.py2','production-visibility-regression.json'),('filtered-mesh-regression.py2','filtered-mesh-regression.json')]:
+candidate=globals().get('SPACEVISUAL_CANDIDATE_PATH',os.path.join(root,'bin','Release','SpaceVisual_'+ET.parse(os.path.join(root,'SpaceVisual.csproj')).findtext('PropertyGroup/Version')+'.gha'))
+for name,report in [('graph-point-filter-regression.py2','production-graph-regression.json'),('visibility-2d-regression.py2','production-visibility-regression.json'),('analysis-mesh-tol-regression.py2','analysis-mesh-tol-regression.json')]:
     path=os.path.join(os.path.dirname(__file__),name)
     execfile(path,{'__file__':path,'SPACEVISUAL_CANDIDATE_PATH':candidate,'SPACEVISUAL_REPORT_NAME':report})

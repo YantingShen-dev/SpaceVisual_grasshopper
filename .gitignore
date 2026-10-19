@@ -5,7 +5,7 @@ dist/
 bin/*
 !bin/Release/
 bin/Release/*
-!bin/Release/SpaceVisual.gha
+!bin/Release/SpaceVisual_*.gha
 
 # Generated development reports and examples
 artifacts/

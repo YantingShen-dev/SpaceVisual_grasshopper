@@ -6,11 +6,23 @@ using Rhino.Geometry;
 using SpaceVisual.Core;
 using SpaceVisual.Core.Base;
 using SpaceVisual.Core.Geometry;
+using SpaceVisual.Core.Params;
 
 namespace SpaceVisual.Analyze2D
 {
     public class SV_Isovist2D : SVComponent
     {
+        private bool _legacyLayout;
+        public override bool Write(GH_IO.Serialization.GH_IWriter writer)
+        {
+            writer.SetInt32("IsovistMeshInterface", _legacyLayout ? 0 : 1);
+            return base.Write(writer);
+        }
+        public override bool Read(GH_IO.Serialization.GH_IReader reader)
+        {
+            _legacyLayout = !reader.ItemExists("IsovistMeshInterface") || reader.GetInt32("IsovistMeshInterface") != 1;
+            return base.Read(reader);
+        }
         public SV_Isovist2D() : base(
             name: "Isovist 2D",
             nickname: "Iso2D",
@@ -29,8 +41,8 @@ namespace SpaceVisual.Analyze2D
 
         protected override void RegisterInputParams(GH_InputParamManager pm)
         {
-            pm.AddPointParameter("Points", "P", "Viewpoints.", GH_ParamAccess.list);
-            int oIdx = pm.AddCurveParameter("_Obstacles", "_O", "Blocking curves in the viewpoints' XY plane, including the outer boundary and internal walls.", GH_ParamAccess.list);
+            pm.AddParameter(new Param_GridPoint(), "Points", "P", "Candidate viewpoints. Grid point metadata supplies the filtered visualization mesh.", GH_ParamAccess.list);
+            int oIdx = pm.AddCurveParameter("_Obstacles", "_O", "Internal solid obstacles and open walls. Connect outer boundaries to _Boundary. Closed obstacle interiors are excluded; tol controls contact points.", GH_ParamAccess.list);
             pm[oIdx].Optional = true;
             int rIdx = pm.AddNumberParameter("_Radius", "_R",
                 "Maximum sight distance. Rays that don't hit an obstacle within this distance terminate here.",
@@ -40,10 +52,15 @@ namespace SpaceVisual.Analyze2D
                 "Number of rays per viewpoint. More = smoother polygon, slower.",
                 GH_ParamAccess.item, 100);
             pm[nIdx].Optional = true;
+            int bIdx = pm.AddCurveParameter("_Boundary", "_B", "Optional closed outer boundaries. Filter points to their union and stop rays at the outlines.", GH_ParamAccess.list);
+            pm[bIdx].Optional = true;
+            int tolIdx = pm.AddBooleanParameter("tol", "tol", "Accept points on boundary or obstacle curves. False (default) excludes contacts; true includes them. Closed-obstacle interiors remain excluded. Contact distance uses 1e-6 model units.", GH_ParamAccess.item, false);
+            pm[tolIdx].Optional = true;
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pm)
         {
+            pm.AddMeshParameter("Mesh", "M", "Filtered mesh in the same point order as all numeric outputs. Connect to Colorize.", GH_ParamAccess.item);
             pm.AddCurveParameter("Polygon", "Pgn", "Isovist polygon (closed PolylineCurve) per viewpoint.", GH_ParamAccess.list);
             pm.AddNumberParameter("Area", "A", "Polygon area.", GH_ParamAccess.list);
             pm.AddNumberParameter("Perimeter", "Pm", "Polygon perimeter.", GH_ParamAccess.list);
@@ -60,22 +77,39 @@ namespace SpaceVisual.Analyze2D
 
         protected override void SolveInstance(IGH_DataAccess da)
         {
+            if (_legacyLayout) { Fail("Place a fresh Isovist 2D with Mesh first, _Boundary and tol inputs, then reconnect it."); return; }
+            var samples = new List<GH_GridPoint>();
             var pts = new List<Point3d>();
             var obstacles = new List<Curve>();
+            var boundaries = new List<Curve>();
             double radius = 50.0;
             int count = 72;
-
-            if (!da.GetDataList(0, pts) || pts.Count == 0) { Fail("No points."); return; }
-            da.GetDataList(1, obstacles);
-            da.GetData(2, ref radius);
-            da.GetData(3, ref count);
-
-            if (radius <= 0) { Fail("Radius must be positive."); return; }
+            bool acceptContact = false;
+            if (!da.GetDataList(0, samples) || samples.Count == 0) { Fail("No points."); return; }
+            foreach (var p in samples) pts.Add(p.Value);
+            da.GetDataList(1, obstacles); da.GetData(2, ref radius); da.GetData(3, ref count);
+            da.GetDataList(4, boundaries); da.GetData(5, ref acceptContact);
+            if (double.IsNaN(radius) || double.IsInfinity(radius) || radius <= 0) { Fail("Radius must be finite and positive."); return; }
             if (count < 8) { Fail("Count must be >= 8."); return; }
-
-            using var occluder = new CurveOccluder(obstacles);
-            int n = pts.Count;
-            var ptArr = pts.ToArray();
+            AnalysisDomain2D domain;
+            var kept = new List<int>();
+            var contacts = new List<bool>();
+            try
+            {
+                domain = new AnalysisDomain2D(pts, boundaries, obstacles);
+                for (int i = 0; i < pts.Count; i++)
+                    if (domain.Allows(pts[i], acceptContact, out bool contact)) { kept.Add(i); contacts.Add(contact); }
+            }
+            catch (ArgumentException ex) { Fail(ex.Message); return; }
+            using var occluder = new CurveOccluder(domain.Blocking);
+            int n = kept.Count;
+            var ptArr = new Point3d[n];
+            for (int i = 0; i < n; i++) ptArr[i] = pts[kept[i]];
+            var mesh = AnalysisMesh.Build(samples, kept, domain);
+            if (mesh != null) da.SetData(0, mesh);
+            else Warn("Mesh unavailable: connect Points directly from a fresh View Grid or View Grid Triangle. Missing, duplicated or mixed point/mesh metadata cannot define an aligned visualization mesh.");
+            Remark($"Isovist: {n}/{pts.Count} points retained, {pts.Count - n} removed; tol={acceptContact}.");
+            if (n == 0) Warn("All viewpoints were excluded. Put outer boundaries in _Boundary; closed _Obstacles are solid. tol controls contour contact points.");
 
             var polygons = new Curve?[n];
             var areas    = new double[n];
@@ -93,7 +127,9 @@ namespace SpaceVisual.Analyze2D
                 {
                     double angle = 2.0 * Math.PI * k / count;
                     var dir = new Vector3d(Math.Cos(angle), Math.Sin(angle), 0);
-                    if (occluder.TryNearestHit(origin, dir, radius, out Point3d hit, out _))
+                    if (contacts[i] && domain.RayStartsOutside(origin, dir, radius))
+                        verts[k] = origin;
+                    else if (occluder.TryNearestHit(origin, dir, radius, out Point3d hit, out _))
                         verts[k] = hit;
                     else
                         verts[k] = origin + dir * radius;
@@ -101,20 +137,21 @@ namespace SpaceVisual.Analyze2D
 
                 // Closed polyline
                 var poly = new Polyline(count + 1);
-                for (int k = 0; k < count; k++) poly.Add(verts[k]);
-                poly.Add(verts[0]);
-                polygons[i] = poly.ToPolylineCurve();
+                for (int k = 0; k < count; k++)
+                    if (poly.Count == 0 || poly[poly.Count-1].DistanceTo(verts[k]) > 1e-9) poly.Add(verts[k]);
+                if (poly.Count > 1 && poly[poly.Count-1].DistanceTo(poly[0]) <= 1e-9) poly.RemoveAt(poly.Count-1);
+                if (poly.Count >= 3) { poly.Add(poly[0]); polygons[i] = poly.ToPolylineCurve(); }
 
                 ComputeMetrics(origin, verts,
                     out areas[i], out perims[i], out compact[i], out maxRad[i], out drift[i]);
             });
 
-            da.SetDataList(0, polygons);
-            da.SetDataList(1, areas);
-            da.SetDataList(2, perims);
-            da.SetDataList(3, compact);
-            da.SetDataList(4, maxRad);
-            da.SetDataList(5, drift);
+            da.SetDataList(1, polygons);
+            da.SetDataList(2, areas);
+            da.SetDataList(3, perims);
+            da.SetDataList(4, compact);
+            da.SetDataList(5, maxRad);
+            da.SetDataList(6, drift);
         }
 
         /// <summary>

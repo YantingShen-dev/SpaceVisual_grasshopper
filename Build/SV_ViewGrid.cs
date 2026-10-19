@@ -5,11 +5,24 @@ using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
 using SpaceVisual.Core;
 using SpaceVisual.Core.Base;
+using SpaceVisual.Core.Params;
+using SpaceVisual.Core.Geometry;
 
 namespace SpaceVisual.Build
 {
     public class SV_ViewGrid : SVComponent
     {
+        private bool _legacyLayout;
+        public override bool Write(GH_IO.Serialization.GH_IWriter writer)
+        {
+            writer.SetInt32("CellsInterface", _legacyLayout ? 0 : 2);
+            return base.Write(writer);
+        }
+        public override bool Read(GH_IO.Serialization.GH_IReader reader)
+        {
+            _legacyLayout = !reader.ItemExists("CellsInterface") || reader.GetInt32("CellsInterface") != 2;
+            return base.Read(reader);
+        }
         public SV_ViewGrid() : base(
             name: "View Grid",
             nickname: "Grid",
@@ -35,7 +48,7 @@ namespace SpaceVisual.Build
         {
             pm.AddGeometryParameter("Region", "R",
                 "Region geometry: closed planar Curve, Surface, or single-face Brep. " +
-                "This clips the sampling grid only. Also connect the boundary to Build Graph 2D's _Boundary input (or Isovist 2D's _Obstacles input) to block sightlines.",
+                "This clips the sampling grid only. Also connect the boundary to Build Graph 2D's _Boundary input (or Isovist 2D's _Boundary input) to block sightlines.",
                 GH_ParamAccess.item);
             int uIdx = pm.AddIntegerParameter("_U Count", "_U",
                 "Number of cells along the U direction (or along the curve bbox X-axis for Curve input).",
@@ -53,16 +66,14 @@ namespace SpaceVisual.Build
 
         protected override void RegisterOutputParams(GH_OutputParamManager pm)
         {
-            pm.AddMeshParameter("Mesh", "M",
-                "Quad mesh covering the region.",
-                GH_ParamAccess.item);
-            pm.AddPointParameter("Points", "P",
-                "Face-center points (one per quad face, aligned with mesh.Faces).",
-                GH_ParamAccess.list);
+            pm.AddMeshParameter("Mesh", "M", "Original quad grid mesh. Use each analysis component's Mesh output after filtering.", GH_ParamAccess.item);
+            pm.AddParameter(new Param_GridPoint(), "Points", "P",
+                "Cell-center points carrying their cell corners. Connect directly to Graph2D to generate its Mesh automatically.", GH_ParamAccess.list);
         }
 
         protected override void SolveInstance(IGH_DataAccess da)
         {
+            if (_legacyLayout) { Fail("This saved View Grid uses an earlier point-data format. Place a fresh View Grid (Mesh, Points) and reconnect it."); return; }
             IGH_GeometricGoo? regionGoo = null;
             int uCount = 20, vCount = 20;
             bool overhang = false;
@@ -123,13 +134,7 @@ namespace SpaceVisual.Build
                 for (int i = 0; i <= uCount; i++)
                     corners[i, j] = new Point3d(bbox.Min.X + i * dx, bbox.Min.Y + j * dy, 0);
 
-            var mesh = new Mesh();
-            var vmap = new int[uCount + 1, vCount + 1];
-            for (int j = 0; j <= vCount; j++)
-                for (int i = 0; i <= uCount; i++)
-                    vmap[i, j] = mesh.Vertices.Add(corners[i, j]);
-
-            var faceCenters = new List<Point3d>();
+            var faceCenters = new List<GH_GridPoint>();
             const double tol = 1e-6;
 
             for (int j = 0; j < vCount; j++)
@@ -151,15 +156,13 @@ namespace SpaceVisual.Build
                         if (con != PointContainment.Inside && con != PointContainment.Coincident) continue;
                     }
 
-                    mesh.Faces.AddFace(vmap[i, j], vmap[i + 1, j], vmap[i + 1, j + 1], vmap[i, j + 1]);
-                    faceCenters.Add(center);
+                    faceCenters.Add(new GH_GridPoint(center, new[] { c00, c10, c11, c01 }));
                 }
             }
 
-            mesh.Normals.ComputeNormals();
-            mesh.Compact();
-
-            da.SetData(0, mesh);
+            var indices = new List<int>();
+            for (int i = 0; i < faceCenters.Count; i++) indices.Add(i);
+            da.SetData(0, AnalysisMesh.Build(faceCenters, indices));
             da.SetDataList(1, faceCenters);
         }
 
@@ -181,13 +184,7 @@ namespace SpaceVisual.Build
             for (int i = 0; i <= uCount; i++) uVals[i] = uDom.ParameterAt(i / (double)uCount);
             for (int j = 0; j <= vCount; j++) vVals[j] = vDom.ParameterAt(j / (double)vCount);
 
-            var mesh = new Mesh();
-            var vmap = new int[uCount + 1, vCount + 1];
-            for (int j = 0; j <= vCount; j++)
-                for (int i = 0; i <= uCount; i++)
-                    vmap[i, j] = mesh.Vertices.Add(surf.PointAt(uVals[i], vVals[j]));
-
-            var faceCenters = new List<Point3d>(uCount * vCount);
+            var faceCenters = new List<GH_GridPoint>(uCount * vCount);
 
             for (int j = 0; j < vCount; j++)
             {
@@ -219,15 +216,15 @@ namespace SpaceVisual.Build
                         }
                     }
 
-                    mesh.Faces.AddFace(vmap[i, j], vmap[i + 1, j], vmap[i + 1, j + 1], vmap[i, j + 1]);
-                    faceCenters.Add(surf.PointAt(uMid, vMid));
+                    faceCenters.Add(new GH_GridPoint(surf.PointAt(uMid, vMid), new[] {
+                        surf.PointAt(uVals[i], vVals[j]), surf.PointAt(uVals[i + 1], vVals[j]),
+                        surf.PointAt(uVals[i + 1], vVals[j + 1]), surf.PointAt(uVals[i], vVals[j + 1]) }));
                 }
             }
 
-            mesh.Normals.ComputeNormals();
-            mesh.Compact();
-
-            da.SetData(0, mesh);
+            var indices = new List<int>();
+            for (int i = 0; i < faceCenters.Count; i++) indices.Add(i);
+            da.SetData(0, AnalysisMesh.Build(faceCenters, indices));
             da.SetDataList(1, faceCenters);
         }
     }

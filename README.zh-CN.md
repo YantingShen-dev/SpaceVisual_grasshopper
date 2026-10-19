@@ -1,5 +1,7 @@
 # Space Visual · 视线分析工具集
 
+**升级到 0.2.3：** 请重新放置 View Grid / View Grid Triangle、Build Graph 2D 和 Isovist 2D，并按名称重新接线。见 [网格与接触点规则](docs/WORKFLOW-0.2.3.md)。
+
 [项目目录说明](PROJECT-STRUCTURE.md) — 正式版本、开发工具与生成文件的存放位置。
 
 **为 Rhino + Grasshopper 提供从分析网格、视线计算到热力图展示的一套工作流。**
@@ -45,37 +47,37 @@
 
 | 平台 | 下载 | 兼容说明 |
 | --- | --- | --- |
-| Windows 0.2.1 | [SpaceVisual.gha](bin/Release/SpaceVisual.gha) · [发布下载](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.1) | 正式 Release 构建，目标支持 Rhino 7（SR0+）与 Rhino 8；已在 Rhino 8 验证 |
+| Windows 0.2.3 | [SpaceVisual_0.2.3.gha](bin/Release/SpaceVisual_0.2.3.gha) · [发布下载](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.3) | 正式 Release 构建，目标支持 Rhino 7（SR0+）与 Rhino 8；0.2.3 的自动化 Rhino 运行回归尚未完成 |
 
 目前只提供 Windows 正式版 `.gha`。旧 Mac 0.1.0 二进制已移除；新版 Mac 需要重新构建并验证后再发布。
 
 1. 点击对应平台的文件链接，再点击 GitHub 的 **Download raw file**。
 2. Windows 用户右键文件 → **属性 → 解除锁定**（若显示此选项）。
 3. 在 Grasshopper 中打开 **File → Special Folders → Components Folder**。
-4. 退出 Rhino，把 `SpaceVisual.gha` 复制到该文件夹。
+4. 退出 Rhino，把 `SpaceVisual_0.2.3.gha` 复制到该文件夹。
 5. 重启 Rhino 与 Grasshopper，找到 **Space Visual** 标签页。
 
 Windows 常用目录为 `%APPDATA%\Grasshopper\Libraries\`。Mac 请以 Grasshopper 打开的目录为准，详细路径与验证清单见 [Mac 安装说明](MAC-TESTING.md)。
 
 只保留一份 Space Visual；关闭 Rhino 后移除旧版，避免重复组件。
 
-本次 Windows 正式版为 **0.2.1**，升级步骤见 [更新记录](CHANGELOG.md)。同时检查 Rhino PackageManager 中是否另有旧版。临时测试版定义需要换成正式组件，再移除 **Space Visual test** 插件；两个版本的自定义 Graph、Parameter 类型不能混接。仓库仅保留 `bin/Release/SpaceVisual.gha`，不再提供 Debug、旧 Mac 或测试版二进制。
+本次 Windows 正式版为 **0.2.3**，升级步骤见 [更新记录](CHANGELOG.md)。同时检查 Rhino PackageManager 中是否另有旧版。临时测试版定义需要换成正式组件，再移除 **Space Visual test** 插件；两个版本的自定义 Graph、Parameter 类型不能混接。仓库仅保留 `bin/Release/SpaceVisual_0.2.3.gha`，不再提供 Debug、旧 Mac 或测试版二进制。
 
 ## 快速开始
 
 ### 做一张二维可视性热力图
 
-1. 准备闭合的平面边界曲线，以及同平面内的遮挡曲线。
-2. 将边界接入 **View Grid**，获得分析网格 `M` 和每个网格面的中心点 `P`。
-3. 将网格 `P` 接到 **Build Graph 2D → Points**，**外边界**接 `_Boundary`（`_B`），**内部障碍物**接 `_Obstacles`（`_O`）。建图前会剔除闭合障碍物内部及轮廓上的点，以及所有外边界之外的点；开放墙线只遮挡视线。View Grid 的点输出不会携带边界曲线。
-4. 将输出的 `Graph` 接入 **VGA Metrics 2D**。可以先看 `Connectivity`，即直接可见的相邻节点数量。
-5. 将 **View Grid → Mesh** 接到 **Graph2D → _Grid Mesh（`_M`）**，再将 **Graph2D → Filtered Mesh（`M`）** 接到 **Colorize → Mesh**，指标接到 `Values 0`。输出网格会同步删除被剔除点对应的面，与图节点及数值一一对应。可选接入 **Parameter** 调整颜色与图例。
+1. 准备闭合外边界与同平面内部障碍曲线，边界接到 **View Grid** 或 **View Grid Triangle**。
+2. 将网格组件的 **Points 直接连接**到 **Build Graph 2D → Points**，保留网格信息；外边界接 `_Boundary`，内部障碍接 `_Obstacles`。边界曲线需要单独连接。
+3. 最后一个布尔输入 **tol** 默认为 `false`，剔除落在边界或障碍曲线上的点；设为 `true` 则接纳接触点。闭合障碍内部、外边界之外的点始终剔除。tol 不是数值距离容差。
+4. **Graph** 接 **VGA Metrics 2D**，指标接 **Colorize → Values 0**；**Build Graph 2D 的第一个输出 Mesh** 接 **Colorize → Mesh**。不再需要 Grid Mesh 输入。
+5. **Isovist 2D** 同样连接 Points、Boundary、Obstacles，使用它自己的第一个 **Mesh** 输出配合 Area 等数值。两个分析组件使用相同输入和 tol 设置时，过滤点的顺序一致。
 
-已有定义也可以继续用原生组件筛选：**Deconstruct Mesh** 的 Faces 接 **List Item**，Graph2D 的 `I` 接索引；筛选后的 Faces 与原 Vertices 接 **Construct Mesh**。`_M` 必须使用与原始 Points 同序、每面一个采样点的原网格，不适用于顶点采样网格。如果 Isovist 2D 也使用过滤后的网格，其 Points 应接 Graph2D 的过滤后 `P`；混合的多组 Values 必须数量相等、空间顺序一致。
+View Grid 保留 **Mesh、Points** 输出，取消中间版本的 Cells。原始 Mesh 用于预览；热力图使用分析组件自己的 Mesh。关闭上游网格和点预览，才能只显示过滤后的结果。
 
-Graph2D 的 **Filtered Points**（`P`）、图节点和 VGA 数值使用相同的过滤后顺序；**Removed Indices**（`R`）输出被剔除点的原始索引。关闭原网格/点的预览，改看过滤后点输出，才能不显示被剔除的输入点；下游组件不会关闭上游预览。上述面索引对应关系适用于每面输出一个中心点的 **View Grid**。**View Grid Triangle** 在曲线输入时使用顶点采样，网格/曲面/Brep 输入时使用面中心点；处理显示网格时应匹配对应关系。采样点过滤不等于沿障碍物轮廓精确裁剪网格。
+普通网格及由 Mesh/Surface/Brep 生成的三角网格按面对应数值；曲线生成的三角网格按顶点对应数值，并删除无效三角面。过滤删除完整网格单元，不沿障碍轮廓精确裁剪。将自定义采样点转换为普通点可能丢失网格信息，请直接连接 Points。
 
-旧文件若将内外边界都接在 `_O`，应将外边界移到 `_B`。现在闭合 `_O` 曲线均表示实体排除区，嵌套障碍物也不会自动成为空洞。所有点与曲线应处于同一个 XY 平面。如果旧定义中的组件没有 `_B` 或 `_M` 输入，请放置新版 Build Graph 2D 并重新接线。
+**旧定义升级：** 重新放置 View Grid / View Grid Triangle、Build Graph 2D、Isovist 2D，按新版端口名称接线；外轮廓接 Boundary，内部障碍接 Obstacles。所有点与曲线必须位于同一 XY 平面。[详细说明](docs/WORKFLOW-0.2.3.md)。
 
 ### 换一个分析问题
 

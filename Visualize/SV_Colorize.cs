@@ -142,8 +142,8 @@ namespace SpaceVisual.Visualize
                 else
                 {
                     Fail($"Values length {combined.Length} matches neither vertex count {vCount} nor face count {fCount}. " +
-                         "After Graph2D point filtering, connect the original View Grid mesh to Graph2D _M " +
-                         "and its Filtered Mesh output M here (or select source faces using Kept Indices I).");
+                         "After Graph2D point filtering, connect View Grid Points directly to Graph2D Points " +
+                         "and connect Graph2D Mesh (first output) here.");
                     return;
                 }
             }

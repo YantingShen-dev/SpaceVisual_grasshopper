@@ -1,14 +1,14 @@
 # Project layout / 项目目录说明
 
-The current Windows release is **0.2.1**. Obsolete compiled plugins and binary backups have been removed. Development scripts and regression tests below work with the current source; they are not older plugin versions.
+The current Windows release is **0.2.3**. Obsolete compiled plugins and binary backups have been removed. Development scripts and regression tests below work with the current source; they are not older plugin versions.
 
-当前 Windows 正式版为 **0.2.1**。旧插件、旧测试二进制和备份已清除。`scripts` 和 `tests` 保留的是当前源码使用的工具，不是旧版本安装包。
+当前 Windows 正式版为 **0.2.3**。旧插件、旧测试二进制和备份已清除。`scripts` 和 `tests` 保留的是当前源码使用的工具，不是旧版本安装包。
 
 | Location | Purpose / 用途 |
 | --- | --- |
-| `bin/Release/SpaceVisual.gha` | Current production plugin / 当前正式插件 |
+| `bin/Release/SpaceVisual_0.2.3.gha` | Current production plugin / 当前正式插件 |
 | `bin/Release/SpaceVisual.pdb` | Local matching debug symbols; not another plugin / 配套调试符号，不是另一版插件 |
-| `dist/0.2.1/` | Local release assets: GHA, ZIP, Yak, checksums and release notes / 当前发布文件 |
+| `dist/0.2.3/` | Local release assets: GHA, ZIP, Yak, checksums and release notes / 当前发布文件 |
 | `scripts/release/` | Package the production release / 正式版打包工具 |
 | `scripts/development/` | Optional separate test build and Rhino example tools / 按需使用的测试版构建及示例工具 |
 | `scripts/mac/` | Mac source-build and smoke-test tools; no Mac binary distributed / Mac 源码构建工具，无已发布二进制 |

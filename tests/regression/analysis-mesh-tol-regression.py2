@@ -1,0 +1,127 @@
+#! python 2
+# -*- coding: utf-8 -*-
+"""Graph/Isovist mesh alignment and contact policy. Run in an existing Rhino host."""
+import os,json,traceback,math
+import xml.etree.ElementTree as ET
+import clr,System,Rhino
+clr.AddReference('Grasshopper');clr.AddReference('GH_IO')
+import Grasshopper
+from Grasshopper.Kernel import GH_Document, GH_RuntimeMessageLevel
+from Grasshopper.Kernel.Types import GH_Curve, GH_Point, GH_Integer, GH_Number, GH_Boolean
+from Rhino.Geometry import Point3d, PolylineCurve, LineCurve
+from GH_IO.Serialization import GH_LooseChunk
+from System.Reflection import BindingFlags
+root=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+out=os.path.join(root,'artifacts','validation')
+if not os.path.isdir(out):os.makedirs(out)
+report={'passed':False,'checks':[]}
+def check(ok,label):
+    if not ok:raise Exception(label)
+    report['checks'].append(label)
+def run():
+    docs=[]
+    try:
+        candidate=globals().get('SPACEVISUAL_CANDIDATE_PATH',os.path.join(root,'bin','Release','SpaceVisual_'+ET.parse(os.path.join(root,'SpaceVisual.csproj')).findtext('PropertyGroup/Version')+'.gha'))
+        a=System.Reflection.Assembly.Load(System.IO.File.ReadAllBytes(candidate))
+        report['candidate']=candidate;report['version']=str(a.GetName().Version)
+        def make(name):return System.Activator.CreateInstance(a.GetType(name))
+        def document():
+            d=GH_Document();d.Enabled=True;docs.append(d);return d
+        def add(d,name):
+            c=make(name);c.CreateAttributes();d.AddObject(c,False);return c
+        def values(param):return [x.Value for x in param.VolatileData.AllData(True)]
+        def goos(param):return list(param.VolatileData.AllData(True))
+        def errors(c):return list(c.RuntimeMessages(GH_RuntimeMessageLevel.Error))
+        def poly(coords):return PolylineCurve(System.Array[Point3d]([Point3d(x,y,0) for x,y in coords]))
+        def point(x,y):
+            p=make('SpaceVisual.Core.Params.GH_GridPoint');check(p.CastFrom(GH_Point(Point3d(x,y,0))),'Native point cast succeeds');return p
+        outer=poly([(0,0),(10,0),(10,10),(0,10),(0,0)])
+        solid=poly([(4,4),(6,4),(6,6),(4,6),(4,4)])
+        wall=LineCurve(Point3d(8,2,0),Point3d(8,8,0))
+        coords=[(0,5),(4,5),(5,5),(1,1),(12,5),(8,5),(10,10),(6,6)]
+        def analyzers(d, source, accept):
+            graph=add(d,'SpaceVisual.Analyze2D.SV_BuildGraph2D')
+            iso=add(d,'SpaceVisual.Analyze2D.SV_Isovist2D')
+            for c in [graph,iso]:
+                if isinstance(source,list):
+                    for p in source:c.Params.Input[0].PersistentData.Append(p.DuplicateGeometry())
+                else:c.Params.Input[0].AddSource(source)
+                c.Params.Input[1].PersistentData.Append(GH_Curve(solid))
+                c.Params.Input[1].PersistentData.Append(GH_Curve(wall))
+            graph.Params.Input[2].PersistentData.Append(GH_Curve(outer))
+            iso.Params.Input[4].PersistentData.Append(GH_Curve(outer))
+            graph.Params.Input[3].PersistentData.Append(GH_Boolean(accept))
+            iso.Params.Input[5].PersistentData.Append(GH_Boolean(accept))
+            iso.Params.Input[2].PersistentData.Append(GH_Number(30))
+            iso.Params.Input[3].PersistentData.Append(GH_Integer(72))
+            return graph,iso
+        for accept,expected in [(False,[3]),(True,[0,1,3,5,6,7])]:
+            d=document();graph,iso=analyzers(d,[point(x,y) for x,y in coords],accept);d.NewSolution(True)
+            check(not errors(graph) and not errors(iso),'Graph and Isovist accept valid planar geometry')
+            check(values(graph.Params.Output[4])==expected,'tol='+str(accept)+': exact retained indices match boundary/solid/open-wall policy')
+            check(all(iso.Params.Output[i].VolatileDataCount==len(expected) for i in range(2,7)),'Isovist numeric counts match the same retained points')
+            check(all(not math.isnan(x) and not math.isinf(x) for i in range(2,7) for x in values(iso.Params.Output[i])),'Contact viewpoints produce finite metrics')
+            check(graph.Params.Input[-1].Name=='tol' and iso.Params.Input[-1].Name=='tol','tol is the final input on both components')
+            check(iso.Params.Output[0].Name=='Mesh' and iso.Params.Input[4].Name=='_Boundary','Isovist exposes Boundary and Mesh first')
+            if accept:
+                graphData=values(graph.Params.Output[1])[0]
+                # Points (4,5) and (6,6) touch the solid; their chord lies inside it.
+                check(5 not in list(graphData.Adjacency[1]),'Accepting contour endpoints does not permit a chord through a solid')
+                polygons=values(iso.Params.Output[1])
+                for polygon in polygons:
+                    if polygon is None:continue
+                    box=polygon.GetBoundingBox(True)
+                    check(box.Min.X>=-1e-5 and box.Min.Y>=-1e-5 and box.Max.X<=10+1e-5 and box.Max.Y<=10+1e-5,'Accepted boundary viewpoints do not cast outside room')
+        # Original face grid remains available, and both analysis meshes align numerically.
+        for triangle in [False,True]:
+            for accept in [False,True]:
+                d=document();grid=add(d,'SpaceVisual.Build.'+('SV_ViewGridTriangle' if triangle else 'SV_ViewGrid'))
+                grid.Params.Input[0].PersistentData.Append(GH_Curve(outer))
+                if triangle:grid.Params.Input[1].PersistentData.Append(GH_Number(1))
+                else:
+                    grid.Params.Input[1].PersistentData.Append(GH_Integer(10));grid.Params.Input[2].PersistentData.Append(GH_Integer(10))
+                graph,iso=analyzers(d,grid.Params.Output[1],accept)
+                metrics=add(d,'SpaceVisual.Analyze2D.SV_VGAMetrics2D');metrics.Params.Input[0].AddSource(graph.Params.Output[1])
+                displays=[]
+                for producer,index in [(metrics,4),(iso,2)]:
+                    color=add(d,'SpaceVisual.Visualize.SV_Colorize')
+                    color.Params.Input[0].AddSource((graph if producer is metrics else iso).Params.Output[0])
+                    color.Params.Input[2].AddSource(producer.Params.Output[index]);displays.append(color)
+                d.NewSolution(True)
+                label=('Triangle' if triangle else 'Quad')+' tol='+str(accept)
+                check(not errors(grid) and not errors(graph) and not errors(iso),label+': complete pipeline solves')
+                check(grid.Params.Output[0].Name=='Mesh',label+': View Grid Mesh restored')
+                graphMesh=values(graph.Params.Output[0])[0];isoMesh=values(iso.Params.Output[0])[0]
+                kept=values(graph.Params.Output[4]);raw=goos(grid.Params.Output[1])
+                count=graphMesh.Vertices.Count if triangle else graphMesh.Faces.Count
+                check(count==len(kept)==iso.Params.Output[2].VolatileDataCount,label+': mesh and values align')
+                check(graphMesh.Vertices.Count==isoMesh.Vertices.Count and graphMesh.Faces.Count==isoMesh.Faces.Count,label+': both analyses produce equivalent display meshes')
+                check(all(not errors(c) and c.GetType().GetField('_coloredMesh',BindingFlags.Instance|BindingFlags.NonPublic).GetValue(c) is not None for c in displays),label+': Graph and Isovist heatmaps render')
+                if triangle:
+                    check(all(Point3d(graphMesh.Vertices[i]).DistanceTo(raw[k].Value)<1e-5 for i,k in enumerate(kept)),label+': vertex order follows retained input order')
+                    sample=raw[len(raw)//2]
+                    chunk=GH_LooseChunk('sample');sample.Write(chunk);loaded=make('SpaceVisual.Core.Params.GH_GridPoint')
+                    check(loaded.Read(chunk) and loaded.HasTopology and list(loaded.Triangles)==list(sample.Triangles),label+': topology survives serialization')
+                    check(all(Point3d(graphMesh.Vertices[i]).DistanceTo(Point3d(isoMesh.Vertices[i]))<1e-9 for i in range(graphMesh.Vertices.Count)),label+': analyses preserve identical vertex order')
+                else:
+                    check(all(graphMesh.Faces.GetFaceCenter(i).DistanceTo(raw[k].Value)<1e-5 for i,k in enumerate(kept)),label+': face order follows retained input order')
+                # All-excluded recomputation clears both meshes and stale heatmaps.
+                for c in [graph,iso]:
+                    c.Params.Input[1].PersistentData.Clear();c.Params.Input[1].PersistentData.Append(GH_Curve(outer))
+                    c.Params.Input[-1].PersistentData.Clear();c.Params.Input[-1].PersistentData.Append(GH_Boolean(False));c.ExpireSolution(False)
+                d.NewSolution(True)
+                check(values(graph.Params.Output[0])[0].Faces.Count==values(iso.Params.Output[0])[0].Faces.Count==0,label+': all-excluded clears both meshes')
+        # Mesh-input triangle grid uses face centers and must support triangle cells too.
+        d=document();source=Rhino.Geometry.Mesh()
+        for x,y in [(1,1),(3,1),(1,3)]:source.Vertices.Add(x,y,0)
+        source.Faces.AddFace(0,1,2)
+        grid=add(d,'SpaceVisual.Build.SV_ViewGridTriangle')
+        grid.Params.Input[0].PersistentData.Append(Grasshopper.Kernel.Types.GH_Mesh(source))
+        graph,iso=analyzers(d,grid.Params.Output[1],False);d.NewSolution(True)
+        check(not errors(graph) and values(graph.Params.Output[0])[0].Faces.Count==1 and values(iso.Params.Output[0])[0].Faces.Count==1,'Triangle face-center samples retain one triangle per value')
+        report['passed']=True
+    except:report['error']=traceback.format_exc()
+    finally:
+        for d in docs:d.Dispose()
+        with open(os.path.join(out,'analysis-mesh-tol-regression.json'),'w') as f:json.dump(report,f,indent=2)
+Rhino.RhinoApp.InvokeOnUiThread(System.Action(run))

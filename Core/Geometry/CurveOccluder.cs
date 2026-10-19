@@ -43,7 +43,7 @@ namespace SpaceVisual.Core.Geometry
         /// Intersections within <paramref name="endpointEpsilon"/> of either endpoint
         /// are ignored so that endpoint coincidence doesn't register as blockage.
         /// </summary>
-        public bool IsBlocked(Point3d from, Point3d to, double endpointEpsilon = 1e-4)
+        public bool IsBlocked(Point3d from, Point3d to, double endpointEpsilon = 1e-4, bool blockOverlap = true)
         {
             if (_curves.Length == 0) return false;
 
@@ -70,6 +70,7 @@ namespace SpaceVisual.Core.Geometry
                     var evt = ix[j];
                     if (evt.IsOverlap)
                     {
+                        if (!blockOverlap) continue;
                         double start = from.DistanceTo(segment.PointAt(evt.OverlapB.Min));
                         double end = from.DistanceTo(segment.PointAt(evt.OverlapB.Max));
                         if (Math.Min(end, len - endpointEpsilon) > Math.Max(start, endpointEpsilon))

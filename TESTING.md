@@ -1,7 +1,9 @@
 # Development and regression testing
 
+For 0.2.3, compilation and Python syntax checks passed. Automated Rhino runtime regression remains pending. Run the regression scripts manually inside an existing Rhino session; see the [workflow notes](docs/WORKFLOW-0.2.3.md).
+
 These tools build or verify the current source. They are not archived plugin versions.
-The current production version is Space Visual 0.2.1; the optional test build is created only on request.
+The current production version is Space Visual 0.2.3; the optional test build is created only on request.
 See [Project layout](PROJECT-STRUCTURE.md) for binary, package and report locations.
 
 To check the production binary in an already open Rhino host, run
@@ -120,4 +122,4 @@ under `artifacts/validation/`. Existing GH documents are preserved.
 
 ## Filtered mesh regression
 
-`tests/regression/filtered-mesh-regression.py2` verifies the production face-grid → Graph2D → VGA → Colorize chain in temporary documents. It also reads any compatible open single-branch View Grid case without editing the active canvas. Reports go to `artifacts/validation/filtered-mesh-regression.json`. Override `SPACEVISUAL_CANDIDATE_PATH` to check a staged build. No new Rhino process is started.
+`tests/regression/analysis-mesh-tol-regression.py2` verifies the production face-grid → Graph2D → VGA → Colorize chain in temporary documents. It also reads any compatible open single-branch View Grid case without editing the active canvas. Reports go to `artifacts/validation/analysis-mesh-tol-regression.json`. Override `SPACEVISUAL_CANDIDATE_PATH` to check a staged build. No new Rhino process is started.

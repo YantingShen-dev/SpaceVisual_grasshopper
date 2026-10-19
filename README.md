@@ -1,5 +1,7 @@
 # Space Visual
 
+**Upgrade to 0.2.3:** replace saved View Grid / View Grid Triangle, Build Graph 2D and Isovist 2D components with fresh instances, then reconnect them. See the [mesh and contact workflow](docs/WORKFLOW-0.2.3.md).
+
 [Project layout](PROJECT-STRUCTURE.md) — current release files, development tools and generated outputs.
 
 **Visibility and sightline analysis for Rhino + Grasshopper.**
@@ -8,7 +10,7 @@ Explore what a viewpoint can see, compare spatial visibility across a site, and 
 
 **English** · [简体中文](README.zh-CN.md)
 
-**Version 0.2.1 for Windows:** filtered grid meshes now stay aligned with graph metrics and heatmaps, alongside concave-boundary visibility and solid-obstacle point filtering. [Release notes and upgrade guide](CHANGELOG.md).
+**Version 0.2.3 for Windows:** Build Graph 2D and Isovist 2D output an aligned visualization Mesh first. Both support separate boundaries and a boolean `tol` switch for points on boundary or obstacle curves. [Release notes and upgrade guide](CHANGELOG.md).
 
 [Download & install](#downloads-and-installation) · [Quick start](#quick-start) · [Components](#components) · [Build from source](#building-from-source)
 
@@ -47,11 +49,11 @@ Use **Isovist 3D** to study visibility from analysis points, and **Received Visi
 
 | Platform | Download | Compatibility |
 | --- | --- | --- |
-| Windows 0.2.1 | [SpaceVisual.gha](bin/Release/SpaceVisual.gha) · [Release assets](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.1) | Production Release build; targets Rhino 7 (SR0+) and Rhino 8; verified in Rhino 8 |
+| Windows 0.2.3 | [SpaceVisual_0.2.3.gha](bin/Release/SpaceVisual_0.2.3.gha) · [Release assets](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.3) | Production Release build; targets Rhino 7 (SR0+) and Rhino 8; automated Rhino runtime regression for 0.2.3 remains pending |
 
 **Mac:** no current binary is distributed. The old 0.1.0 download has been removed; a new Mac build needs runtime validation before publication.
 
-Open `SpaceVisual.gha` above and click GitHub's **Download raw file** button. Only the `.gha` is needed.
+Open `SpaceVisual_0.2.3.gha` above and click GitHub's **Download raw file** button. Only the `.gha` is needed.
 
 ### Windows
 
@@ -63,7 +65,7 @@ Open `SpaceVisual.gha` above and click GitHub's **Download raw file** button. On
 
 Keep only one Space Visual installation. Close Rhino and remove older copies before installing.
 
-For upgrades, also check Rhino PackageManager for another installed copy. Remove the temporary **Space Visual test** plugin after converting test definitions to production components; the two editions' custom Graph and Parameter types cannot be mixed. `bin/Release/SpaceVisual.gha` is the sole checked-in plugin binary. Old Debug, Mac and test binaries are no longer distributed.
+For upgrades, also check Rhino PackageManager for another installed copy. Remove the temporary **Space Visual test** plugin after converting test definitions to production components; the two editions' custom Graph and Parameter types cannot be mixed. `bin/Release/SpaceVisual_0.2.3.gha` is the sole checked-in plugin binary. Old Debug, Mac and test binaries are no longer distributed.
 
 See [MAC-TESTING.md](MAC-TESTING.md) for the Mac build and validation checklist.
 
@@ -71,17 +73,18 @@ See [MAC-TESTING.md](MAC-TESTING.md) for the Mac build and validation checklist.
 
 ### Make a 2D visibility heatmap
 
-1. Create a closed planar boundary and coplanar obstacle curves.
-2. Connect the boundary to **View Grid**. Its `M` output is the analysis mesh; `P` contains one point per mesh face.
-3. Connect grid `P` to **Build Graph 2D → Points**, the **outer boundary** to `_Boundary` (`_B`), and **internal obstacles** to `_Obstacles` (`_O`). Closed obstacles remove points inside/on them before graph construction; open walls only block sightlines. Points outside all boundaries are also removed. View Grid does not pass boundary curves through its Points output.
-4. Connect the resulting `Graph` to **VGA Metrics 2D**. Start with `Connectivity`, the number of directly visible neighbors.
-5. Connect **View Grid → Mesh** to **Graph2D → _Grid Mesh (`_M`)**, then **Graph2D → Filtered Mesh (`M`)** to **Colorize → Mesh**. Connect compact metric values to `Values 0`. The filtered mesh contains one face per retained graph point; obstacle cells are removed automatically. Optionally connect **Parameter** for the palette and legend.
+1. Create a closed planar outer boundary and coplanar internal obstacle curves.
+2. Connect the boundary to **View Grid** or **View Grid Triangle**. Connect its **Points directly** to **Build Graph 2D → Points** so source mesh information is preserved.
+3. Connect the **outer boundary** to `_Boundary` and **internal obstacles** to `_Obstacles`. Closed obstacles exclude their interiors; open curves act as walls. Points outside the boundary are excluded. Grid Points do not carry boundary curves, so connect those explicitly.
+4. Leave the final boolean **tol** input `false` to exclude points on boundary or obstacle curves. Set it to `true` to include contact points; solid interiors and points outside the boundary remain excluded. This is an inclusion switch, not a numeric tolerance.
+5. Connect **Graph** to **VGA Metrics 2D**, then a metric such as Connectivity to **Colorize → Values 0**. Connect **Build Graph 2D → Mesh** (the first output) to **Colorize → Mesh**. No Grid Mesh input is needed.
+6. For an isovist heatmap, connect the same grid Points, Boundary and Obstacles to **Isovist 2D**. Use its own first **Mesh** output with its Area, Perimeter or other metric. Set the same `tol` value when comparing both analyses.
 
-For existing definitions, you can also select faces manually: **Deconstruct Mesh** → faces into **List Item**, using Graph2D `I` → **Construct Mesh** with the original vertices → **Colorize**. The `_M` input requires the original face-sampled grid, in the same order as the original Points list; vertex-sampled meshes are not accepted. If Isovist 2D is to use this filtered mesh, feed it Graph2D's filtered `P` as well. All blended Values series must have the same length and spatial order.
+**View Grid** outputs Mesh and Points; the interim Cells output has been removed. Its Mesh is the original grid preview. Use each analysis component's own Mesh for filtered heatmaps. Hide upstream grid/point previews to show only the filtered result.
 
-Graph2D's **Filtered Points** (`P`), graph nodes and VGA values share the same compact order. **Removed Indices** (`R`) identifies rejected input points. Hide the original grid/point preview to see only the filtered points; downstream components cannot hide previews upstream. The face-index correspondence above applies to **View Grid**, which emits one face-center point per face. **View Grid Triangle** uses vertex samples for curve inputs, but face centers for mesh/surface/Brep inputs; match the relevant correspondence when filtering its display mesh. Filtering sample points does not geometrically trim a mesh at obstacle outlines.
+Quad grids and triangle grids made from mesh/surface/Brep inputs use one face per retained sample. Triangle grids made from curves use one vertex per retained sample, with invalid triangles removed. Values follow the same retained order. Filtering removes whole cells/triangles; it does not precisely trim them along obstacle outlines. Converting custom grid samples into ordinary points can discard mesh information: connect grid Points directly to analysis Points.
 
-For older definitions that merged outer and inner curves into `_O`, move the outer curves to `_B`. Closed `_O` curves now mean solid exclusion regions, including nested curves; they are not interpreted as outer room boundaries. All points and curves must lie in the same XY plane. If an older saved component does not expose `_B` or `_M`, place a fresh Build Graph 2D and reconnect it.
+**Upgrade:** replace saved View Grid / View Grid Triangle, Build Graph 2D and Isovist 2D nodes with fresh components. Ports and point data changed; reconnect by name. Move outer outlines from Obstacles to Boundary. All input points and curves must lie in the same XY plane. [Detailed workflow and limitations](docs/WORKFLOW-0.2.3.md).
 
 ### Try another question
 
@@ -107,15 +110,15 @@ For older definitions that merged outer and inner curves into `_O`, move the out
 
 | Component | Purpose |
 | --- | --- |
-| **View Grid Triangle** | Triangulated analysis mesh and face-center points from Curve / Surface / Brep / Mesh inputs; spacing controls mesh density. |
+| **View Grid Triangle** | Triangulated mesh with vertex samples for curves and face-center samples for Surface / Brep / Mesh; points retain source topology. |
 | **View Grid** | Quad analysis mesh and face-center points from a closed planar Curve, Surface, or single-face Brep; trim-aware boundary handling. |
 
 ### 2 · Analyze 2D
 
 | Component | Purpose |
 | --- | --- |
-| **Build Graph 2D** | Visibility graph and visible lines from points and curve obstacles. |
-| **Isovist 2D** | Visible polygon, Area, Perimeter, Compactness, Max Radial, and Drift. |
+| **Build Graph 2D** | Aligned Mesh, visibility graph and visible lines from filtered points, boundaries and obstacles; boolean tol controls contact points. |
+| **Isovist 2D** | Aligned Mesh, visible polygons, Area, Perimeter, Compactness, Max Radial and Drift; Boundary and tol filter viewpoints. |
 | **VGA Metrics 2D** | Integration (inverse mean depth), Entropy, Control, Clustering, and Connectivity. |
 | **From Viewpoint 2D** | Graph step depth, straight-line distance, and bearing from starting viewpoints; unreachable nodes return NaN. |
 
@@ -144,7 +147,7 @@ With the .NET SDK installed, run:
 dotnet build -c Release
 ```
 
-Output: `bin/Release/SpaceVisual.gha`, the only checked-in production binary.
+The compiler produces the internal `bin/Release/SpaceVisual.gha`. Package it with `scripts/release/package-release.ps1 -YakPath "C:\Program Files\Rhino 8\System\Yak.exe"`; distribution files use `SpaceVisual_<version>.gha`. Only the current versioned GHA is checked in.
 
 On Windows, Debug builds automatically copy the plugin to the existing `%APPDATA%\Grasshopper\Libraries\` directory. To disable this:
 

@@ -50,14 +50,14 @@ def run():
         grid.Params.Input[0].AddSource(region)
         graph.Params.Input[0].AddSource(grid.Params.Output[1])
         graph.Params.Input[2].AddSource(region)
-        metrics.Params.Input[0].AddSource(graph.Params.Output[0])
-        color.Params.Input[0].AddSource(grid.Params.Output[0])
+        metrics.Params.Input[0].AddSource(graph.Params.Output[1])
+        color.Params.Input[0].AddSource(graph.Params.Output[0])
         color.Params.Input[2].AddSource(metrics.Params.Output[4])
         grid.Hidden = True
         graph.Hidden = True  # Enable its preview to inspect the valid sightlines.
         for attempt in range(3):
             doc.NewSolution(True)
-            graph_data = list(graph.Params.Output[0].VolatileData.AllData(True))[0].Value
+            graph_data = list(graph.Params.Output[1].VolatileData.AllData(True))[0].Value
             points = list(graph_data.Points)
             check(len(points) == 64, 'Concave grid contains 64 points (run %d)' % (attempt+1))
             edges = set((i,j) for i,row in enumerate(graph_data.Adjacency) for j in row if j > i)

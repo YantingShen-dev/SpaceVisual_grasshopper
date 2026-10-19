@@ -14,6 +14,17 @@ namespace SpaceVisual.Analyze2D
 {
     public class SV_BuildGraph2D : SVComponent
     {
+        private bool _legacyLayout;
+        public override bool Write(GH_IO.Serialization.GH_IWriter writer)
+        {
+            writer.SetInt32("CellsInterface", _legacyLayout ? 0 : 2);
+            return base.Write(writer);
+        }
+        public override bool Read(GH_IO.Serialization.GH_IReader reader)
+        {
+            _legacyLayout = !reader.ItemExists("CellsInterface") || reader.GetInt32("CellsInterface") != 2;
+            return base.Read(reader);
+        }
         public SV_BuildGraph2D() : base(
             name: "Build Graph 2D",
             nickname: "Graph2D",
@@ -32,109 +43,72 @@ namespace SpaceVisual.Analyze2D
 
         protected override void RegisterInputParams(GH_InputParamManager pm)
         {
-            pm.AddPointParameter("Points", "P",
-                "Candidate viewpoints. Points outside _Boundary or inside/on closed _Obstacles are removed before building the graph. All geometry must share an XY plane.",
+            pm.AddParameter(new Param_GridPoint(), "Points", "P",
+                "Candidate viewpoints. Points outside _Boundary or inside closed _Obstacles are removed. tol controls points on any contour. All geometry must share an XY plane.",
                 GH_ParamAccess.list);
             int oIdx = pm.AddCurveParameter("_Obstacles", "_O",
-                "Internal obstacles: closed curves exclude points inside/on them; open curves only block sightlines. " +
+                "Internal obstacles: closed curves exclude interior points; all curves block sightlines. tol controls contact points. " +
                 "Connect the outer boundary to _B, not here. Closed obstacles are solid even when nested.",
                 GH_ParamAccess.list);
             pm[oIdx].Optional = true;
             int bIdx = pm.AddCurveParameter("_Boundary", "_B",
-                "Optional closed outer boundary curves. Keep points inside/on any boundary, and block sightlines crossing their outlines. " +
+                "Optional closed outer boundary curves. Keep points inside any boundary (tol controls outline points), and block sightlines crossing their outlines. " +
                 "Connect the same outer boundary used by View Grid here. With no boundary, the analysis extent is unrestricted.",
                 GH_ParamAccess.list);
             pm[bIdx].Optional = true;
-            int mIdx = pm.AddMeshParameter("_Grid Mesh", "_M",
-                "Optional original View Grid mesh, with one face per input point in the same order. " +
-                "Faces at rejected points are removed. Connect output M to Colorize instead of the original mesh. " +
-                "Vertex-sampled meshes are not supported by this input.", GH_ParamAccess.item);
-            pm[mIdx].Optional = true;
+            int tolIdx = pm.AddBooleanParameter("tol", "tol", "Accept points on boundary or obstacle curves. False (default) excludes contact points; true includes them. Closed-obstacle interiors remain excluded. Contact distance uses 1e-6 model units.", GH_ParamAccess.item, false);
+            pm[tolIdx].Optional = true;
+
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pm)
         {
+            pm.AddMeshParameter("Mesh", "M", "Retained grid cells in graph/value order. Generated from cell information carried by View Grid Points. Connect to Colorize.", GH_ParamAccess.item);
             pm.AddParameter(new Param_VisibilityGraph(), "Graph", "G",
                 "Visibility graph. Feed to SV_VGAMetrics2D / SV_FromViewpoint2D / SV_VisualPath2D.",
                 GH_ParamAccess.item);
             pm.AddLineParameter("Visible Lines", "L",
                 "Unique sight line segments (one per visible pair, i<j). Useful for visualisation.",
                 GH_ParamAccess.list);
-            pm.AddPointParameter("Filtered Points", "P", "Retained points in graph/VGA order. Preview these instead of the original grid points.", GH_ParamAccess.list);
+            pm.AddParameter(new Param_GridPoint(), "Filtered Points", "P", "Retained points in graph/VGA order. Preview these instead of the original grid points.", GH_ParamAccess.list);
             pm.AddIntegerParameter("Kept Indices", "I", "Zero-based indices in the original Points list, in graph order. Use to select matching source data or grid faces before colorizing compact VGA values.", GH_ParamAccess.list);
             pm.AddIntegerParameter("Removed Indices", "R", "Zero-based indices of rejected input points. Graph/VGA outputs do not include these points.", GH_ParamAccess.list);
-            pm.AddMeshParameter("Filtered Mesh", "M",
-                "Grid faces retained in graph/VGA order. Connect to Colorize with graph metrics; hide the original grid preview. " +
-                "Requires the original face-sampled mesh at _M.", GH_ParamAccess.item);
+
         }
 
         protected override void SolveInstance(IGH_DataAccess da)
         {
+            if (_legacyLayout) { Fail("This saved Graph2D uses the old output order. Place a fresh Build Graph 2D (Mesh first, Graph second) and reconnect it."); return; }
+            var samples = new List<GH_GridPoint>();
             var pts = new List<Point3d>();
             var obstacles = new List<Curve>();
             var boundaries = new List<Curve>();
 
-            if (!da.GetDataList(0, pts) || pts.Count == 0)
+            if (!da.GetDataList(0, samples) || samples.Count == 0)
             {
                 Fail("No points provided."); return;
             }
+            foreach (var sample in samples) pts.Add(sample.Value);
             da.GetDataList(1, obstacles);
             da.GetDataList(2, boundaries);
-            Mesh? gridMesh = null;
-            da.GetData(3, ref gridMesh);
-            if (gridMesh != null && (!gridMesh.IsValid || gridMesh.Faces.Count != pts.Count))
-            {
-                Fail("_Grid Mesh must be valid and have one face per original input point, in the same order. " +
-                     $"Received {gridMesh.Faces.Count} faces and {pts.Count} points. Use the face-sampled View Grid mesh.");
-                return;
-            }
-            const double tolerance = 1e-6;
-            double z = pts[0].Z;
-            var plane = new Plane(new Point3d(0, 0, z), Vector3d.ZAxis);
-            foreach (var p in pts)
-                if (!p.IsValid || Math.Abs(p.Z - z) > tolerance)
-                { Fail("All candidate points must be valid and lie in the same XY plane."); return; }
-
-            var blocking = new List<Curve>(obstacles);
-            blocking.AddRange(boundaries);
-            foreach (var c in blocking)
-            {
-                if (c == null || !c.IsValid)
-                { Fail("Boundary and obstacle curves must be valid."); return; }
-                var box = c.GetBoundingBox(true);
-                if (!box.IsValid || Math.Abs(box.Min.Z - z) > tolerance || Math.Abs(box.Max.Z - z) > tolerance)
-                { Fail("All boundaries, obstacles and points must lie in the same XY plane."); return; }
-            }
-            foreach (var boundary in boundaries)
-                if (!boundary.IsClosed)
-                { Fail("_Boundary curves must be closed. Put open wall curves in _Obstacles."); return; }
-
+            bool acceptContact = false;
+            da.GetData(3, ref acceptContact);
+            AnalysisDomain2D domain;
+            try { domain = new AnalysisDomain2D(pts, boundaries, obstacles); }
+            catch (ArgumentException ex) { Fail(ex.Message); return; }
+            var blocking = domain.Blocking;
             var retained = new List<Point3d>();
             var kept = new List<int>();
             var removed = new List<int>();
-            for (int i = 0; i < pts.Count; i++)
+            var contacts = new List<bool>();
+            try
             {
-                bool allowed = boundaries.Count == 0;
-                foreach (var boundary in boundaries)
-                {
-                    var relation = boundary.Contains(pts[i], plane, tolerance);
-                    if (relation == PointContainment.Unset)
-                    { Fail("Could not classify points against _Boundary. Check closed planar curves."); return; }
-                    if (relation == PointContainment.Inside || relation == PointContainment.Coincident) allowed = true;
-                }
-                if (allowed)
-                    foreach (var obstacle in obstacles)
-                    {
-                        if (!obstacle.IsClosed) continue;
-                        var relation = obstacle.Contains(pts[i], plane, tolerance);
-                        if (relation == PointContainment.Unset)
-                        { Fail("Could not classify points against a closed obstacle. Check its geometry."); return; }
-                        if (relation == PointContainment.Inside || relation == PointContainment.Coincident)
-                        { allowed = false; break; }
-                    }
-                if (allowed) { retained.Add(pts[i]); kept.Add(i); }
-                else removed.Add(i);
+                for (int i = 0; i < pts.Count; i++)
+                    if (domain.Allows(pts[i], acceptContact, out bool contact))
+                    { retained.Add(pts[i]); kept.Add(i); contacts.Add(contact); }
+                    else removed.Add(i);
             }
+            catch (ArgumentException ex) { Fail(ex.Message); return; }
             if (blocking.Count == 0)
                 Warn("No boundary or obstacles: every pair of points is visible.");
             if (retained.Count == 0)
@@ -155,7 +129,8 @@ namespace SpaceVisual.Analyze2D
                 var pi = ptArr[i];
                 for (int j = i + 1; j < n; j++)
                 {
-                    if (!occluder.IsBlocked(pi, ptArr[j]))
+                    if (!occluder.IsBlocked(pi, ptArr[j]) &&
+                        (!(contacts[i] || contacts[j]) || domain.Allows((pi + ptArr[j]) / 2.0)))
                         pairs.Add((i, j));
                 }
             });
@@ -185,22 +160,16 @@ namespace SpaceVisual.Analyze2D
             int edges = totalDegree / 2;
             Remark($"Built graph: {n}/{pts.Count} points retained, {removed.Count} removed, {edges} edges, avg degree {(n == 0 ? 0 : (double)totalDegree / n):F1}.");
 
-            da.SetData(0, new GH_VisibilityGraph(graph));
-            da.SetDataList(1, lines);
-            da.SetDataList(2, ptArr);
-            da.SetDataList(3, kept);
-            da.SetDataList(4, removed);
-            if (gridMesh != null)
-            {
-                // Preserve source face order and attributes without changing the input mesh.
-                var filteredMesh = gridMesh.DuplicateMesh();
-                filteredMesh.Faces.Clear();
-                foreach (int index in kept) filteredMesh.Faces.AddFace(gridMesh.Faces[index]);
-                filteredMesh.Vertices.CullUnused();
-                filteredMesh.Normals.ComputeNormals();
-                filteredMesh.Compact();
-                da.SetData(5, filteredMesh);
-            }
+            var filteredSamples = new List<GH_GridPoint>();
+            foreach (int index in kept) filteredSamples.Add((GH_GridPoint)samples[index].DuplicateGeometry());
+            var mesh = AnalysisMesh.Build(samples, kept, domain);
+            if (mesh != null) da.SetData(0, mesh);
+            else Warn("Mesh unavailable: connect Points directly from a fresh View Grid or View Grid Triangle. Missing, duplicated or mixed point/mesh metadata cannot define an aligned visualization mesh.");
+            da.SetData(1, new GH_VisibilityGraph(graph));
+            da.SetDataList(2, lines);
+            da.SetDataList(3, filteredSamples);
+            da.SetDataList(4, kept);
+            da.SetDataList(5, removed);
         }
     }
 }

@@ -5,11 +5,24 @@ using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
 using SpaceVisual.Core;
 using SpaceVisual.Core.Base;
+using SpaceVisual.Core.Params;
+using SpaceVisual.Core.Geometry;
 
 namespace SpaceVisual.Build
 {
     public class SV_ViewGridTriangle : SVComponent
     {
+        private bool _legacyLayout;
+        public override bool Write(GH_IO.Serialization.GH_IWriter writer)
+        {
+            writer.SetInt32("GridDataInterface", _legacyLayout ? 0 : 1);
+            return base.Write(writer);
+        }
+        public override bool Read(GH_IO.Serialization.GH_IReader reader)
+        {
+            _legacyLayout = !reader.ItemExists("GridDataInterface") || reader.GetInt32("GridDataInterface") != 1;
+            return base.Read(reader);
+        }
         public SV_ViewGridTriangle() : base(
             name: "View Grid Triangle",
             nickname: "GridT",
@@ -31,7 +44,7 @@ namespace SpaceVisual.Build
         {
             pm.AddGeometryParameter("Region", "R",
                 "Region geometry: closed Curve, Surface, Brep, or Mesh. " +
-                "This defines the sampling grid only. Also connect boundaries to Build Graph 2D's _Boundary input (or Isovist 2D's _Obstacles input) to block sightlines.",
+                "This defines the sampling grid only. Also connect boundaries to Build Graph 2D's _Boundary input (or Isovist 2D's _Boundary input) to block sightlines.",
                 GH_ParamAccess.item);
             int sIdx = pm.AddNumberParameter("_Spacing", "_S",
                 "Cell size. For Curve regions: grid step. For Surface/Brep: drives auto-meshing edge length. " +
@@ -49,13 +62,14 @@ namespace SpaceVisual.Build
             pm.AddMeshParameter("Mesh", "M",
                 "Triangulated mesh aligned with the points (Delaunay for Curve, source/auto-mesh for Surface/Mesh).",
                 GH_ParamAccess.item);
-            pm.AddPointParameter("Points", "P",
+            pm.AddParameter(new Param_GridPoint(), "Points", "P",
                 "Generated points (one per face center for Mesh/Surface; grid samples for Curve).",
                 GH_ParamAccess.list);
         }
 
         protected override void SolveInstance(IGH_DataAccess da)
         {
+            if (_legacyLayout) { Fail("Place a fresh View Grid Triangle to carry mesh topology with Points."); return; }
             IGH_GeometricGoo? regionGoo = null;
             double spacing = 1.0;
             int mode = 0;
@@ -142,7 +156,7 @@ namespace SpaceVisual.Build
             var clipped = (rawMesh == null) ? null : ClipMeshToCurve(rawMesh, curve, containmentTol);
 
             da.SetData(0, clipped);
-            da.SetDataList(1, pts);
+            da.SetDataList(1, AnalysisMesh.VertexSamples(pts, clipped));
         }
 
         private static Mesh? MakeDelaunay(List<Point3d> pts)
@@ -160,7 +174,6 @@ namespace SpaceVisual.Build
             for (int i = 0; i < pts.Count; i++) m.Vertices.Add(pts[i]);
             foreach (var f in faces) m.Faces.AddFace(f.A, f.B, f.C);
             m.Normals.ComputeNormals();
-            m.Compact();
             return m;
         }
 
@@ -181,7 +194,6 @@ namespace SpaceVisual.Build
                     kept.Faces.AddFace(mesh.Faces[f]);
             }
             kept.Normals.ComputeNormals();
-            kept.Compact();
             return kept;
         }
 
@@ -223,13 +235,9 @@ namespace SpaceVisual.Build
             da.SetDataList(1, pts);
         }
 
-        private static List<Point3d> ExtractFaceCenters(Mesh mesh)
+        private static List<GH_GridPoint> ExtractFaceCenters(Mesh mesh)
         {
-            int fcount = mesh.Faces.Count;
-            var pts = new List<Point3d>(fcount);
-            for (int f = 0; f < fcount; f++)
-                pts.Add(mesh.Faces.GetFaceCenter(f));
-            return pts;
+            return AnalysisMesh.FaceSamples(mesh);
         }
     }
 }
