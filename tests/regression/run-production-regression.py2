@@ -11,6 +11,6 @@ root=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 output=os.path.join(root,'artifacts','validation')
 if not os.path.isdir(output):os.makedirs(output)
 candidate=os.path.join(root,'bin','Release','SpaceVisual.gha')
-for name,report in [('graph-point-filter-regression.py2','production-graph-regression.json'),('visibility-2d-regression.py2','production-visibility-regression.json')]:
+for name,report in [('graph-point-filter-regression.py2','production-graph-regression.json'),('visibility-2d-regression.py2','production-visibility-regression.json'),('filtered-mesh-regression.py2','filtered-mesh-regression.json')]:
     path=os.path.join(os.path.dirname(__file__),name)
     execfile(path,{'__file__':path,'SPACEVISUAL_CANDIDATE_PATH':candidate,'SPACEVISUAL_REPORT_NAME':report})

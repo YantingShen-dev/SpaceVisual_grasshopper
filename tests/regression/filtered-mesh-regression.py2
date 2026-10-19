@@ -1,0 +1,146 @@
+#! python 2
+# -*- coding: utf-8 -*-
+"""Verify filtered grid -> graph -> metrics -> Colorize in temporary documents.
+
+An open user's definition is read only; no components are registered or replaced.
+"""
+import os, json, traceback
+import clr, System, Rhino
+clr.AddReference('Grasshopper')
+import Grasshopper
+from Grasshopper.Kernel import GH_Document, GH_DocumentIO, GH_RuntimeMessageLevel
+from Grasshopper.Kernel.Types import GH_Point, GH_Curve, GH_Mesh, GH_Number
+from Rhino.Geometry import Mesh, Point3d, PolylineCurve
+from System.Reflection import BindingFlags
+root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+report_dir = os.path.join(root, 'artifacts', 'validation')
+if not os.path.isdir(report_dir): os.makedirs(report_dir)
+report = {'passed': False, 'checks': [], 'user_cases': []}
+
+def check(ok, label):
+    if not ok: raise Exception(label)
+    report['checks'].append(label)
+
+def data(parameter):
+    return [x.Value for x in parameter.VolatileData.AllData(True)]
+
+def run():
+    documents = []
+    try:
+        candidate = globals().get('SPACEVISUAL_CANDIDATE_PATH', os.path.join(root, 'bin', 'Release', 'SpaceVisual.gha'))
+        assembly = System.Reflection.Assembly.Load(System.IO.File.ReadAllBytes(candidate))
+        report['candidate_path'] = candidate
+        report['version'] = str(assembly.GetName().Version)
+        def component(name, doc):
+            c = System.Activator.CreateInstance(assembly.GetType(name))
+            c.CreateAttributes(); doc.AddObject(c, False)
+            return c
+        def errors(c): return list(c.RuntimeMessages(GH_RuntimeMessageLevel.Error))
+        def cached_mesh(c):
+            return c.GetType().GetField('_coloredMesh', BindingFlags.Instance | BindingFlags.NonPublic).GetValue(c)
+        def solve(mesh, points, obstacles, boundaries):
+            doc = GH_Document(); doc.Enabled = True; documents.append(doc)
+            graph = component('SpaceVisual.Analyze2D.SV_BuildGraph2D', doc)
+            for p in points: graph.Params.Input[0].PersistentData.Append(GH_Point(p))
+            for c in obstacles: graph.Params.Input[1].PersistentData.Append(GH_Curve(c))
+            for c in boundaries: graph.Params.Input[2].PersistentData.Append(GH_Curve(c))
+            if mesh is not None: graph.Params.Input[3].PersistentData.Append(GH_Mesh(mesh.DuplicateMesh()))
+            doc.NewSolution(True)
+            return doc, graph
+        def color_pipeline(doc, graph, original, label):
+            check(not errors(graph), label + ': graph solves')
+            kept = data(graph.Params.Output[3])
+            filtered = data(graph.Params.Output[5])[0]
+            check(filtered.Faces.Count == len(kept) == graph.Params.Output[2].VolatileDataCount, label + ': mesh/points/indices align')
+            check(all(filtered.Faces.GetFaceCenter(i).DistanceTo(original.Faces.GetFaceCenter(k)) < 1e-5 for i,k in enumerate(kept)), label + ': face order and positions preserved')
+            metrics = component('SpaceVisual.Analyze2D.SV_VGAMetrics2D', doc)
+            metrics.Params.Input[0].AddSource(graph.Params.Output[0])
+            colors = []
+            for i in range(5):
+                color = component('SpaceVisual.Visualize.SV_Colorize', doc)
+                color.Params.Input[0].AddSource(graph.Params.Output[5])
+                color.Params.Input[2].AddSource(metrics.Params.Output[i])
+                colors.append(color)
+            doc.NewSolution(True)
+            check(not errors(metrics), label + ': metrics solve')
+            check(all(not errors(c) and cached_mesh(c) is not None and cached_mesh(c).Faces.Count == len(kept) for c in colors), label + ': all five metric heatmaps render retained faces')
+            return colors, filtered
+
+        mesh = Mesh()
+        for y in range(5):
+            for x in range(6): mesh.Vertices.Add(x, y, 0)
+        for y in range(4):
+            for x in range(5):
+                a = y * 6 + x; mesh.Faces.AddFace(a, a+1, a+7, a+6)
+        mesh.Normals.ComputeNormals()
+        points = [mesh.Faces.GetFaceCenter(i) for i in range(mesh.Faces.Count)]
+        def rectangle(x0,y0,x1,y1):
+            return PolylineCurve(System.Array[Point3d]([Point3d(x0,y0,0),Point3d(x1,y0,0),Point3d(x1,y1,0),Point3d(x0,y1,0),Point3d(x0,y0,0)]))
+        hole = rectangle(1,1,3,3)
+        boundary = rectangle(0,0,5,4)
+        doc, graph = solve(mesh, points, [hole], [boundary])
+        colors, filtered = color_pipeline(doc, graph, mesh, 'Solid obstacle')
+        check(filtered.Faces.Count == 16 and mesh.Faces.Count == 20 and mesh.Vertices.Count == 30, 'Four interior faces removed; source mesh unchanged')
+        check(not any(1 < filtered.Faces.GetFaceCenter(i).X < 3 and 1 < filtered.Faces.GetFaceCenter(i).Y < 3 for i in range(filtered.Faces.Count)), 'Obstacle has no rendered faces')
+        # A wrong mesh must fail explicitly, rather than silently coloring other cells.
+        _, wrong = solve(mesh, points[:-1], [], [])
+        check(bool(errors(wrong)), 'Wrong original face/point count rejected')
+        _, no_mesh = solve(None, points, [hole], [boundary])
+        check(not errors(no_mesh) and not any(x is not None and x.Value is not None for x in no_mesh.Params.Output[5].VolatileData.AllData(True)), 'Existing graph-only workflow preserved')
+        _, unchanged = solve(mesh, points, [], [boundary])
+        check(data(unchanged.Params.Output[5])[0].Faces.Count == 20, 'No exclusions retains every face')
+        # Clearing after a previous successful solve must not leave a stale heatmap.
+        graph.Params.Input[1].PersistentData.Clear()
+        graph.Params.Input[1].PersistentData.Append(GH_Curve(boundary))
+        graph.ExpireSolution(False); doc.NewSolution(True)
+        check(data(graph.Params.Output[5])[0].Faces.Count == 0, 'All excluded produces empty mesh')
+        check(all(cached_mesh(c) is None for c in colors), 'All excluded clears old heatmaps')
+        # Multiple Values inputs must share the same compact indexing.
+        doc, graph = solve(mesh, points, [hole], [boundary])
+        colors, filtered = color_pipeline(doc, graph, mesh, 'Blend fixture')
+        color = colors[0]
+        side = Grasshopper.Kernel.GH_ParameterSide.Input
+        extra = color.CreateParameter(side, 3)
+        color.Params.RegisterInputParam(extra)
+        color.VariableParameterMaintenance(); color.Params.OnParametersChanged()
+        for i in range(20): extra.PersistentData.Append(GH_Number(i))
+        color.ExpireSolution(False); doc.NewSolution(True)
+        check(bool(errors(color)) and cached_mesh(color) is None, 'Blending filtered and unfiltered lengths is rejected without stale preview')
+
+        # Reproduce any open single-branch user case using its solved data only.
+        active = Grasshopper.Instances.ActiveCanvas.Document if Grasshopper.Instances.ActiveCanvas is not None else None
+        if active is not None:
+            for source in active.Objects:
+                if str(source.ComponentGuid) != 'd7e3a9b4-5f12-4c80-a6e9-2b8d4f7c1903': continue
+                if source.Params.Input[0].VolatileData.PathCount != 1: continue
+                raw = data(source.Params.Input[0])
+                grid = next((s.Attributes.GetTopLevel.DocObject for s in source.Params.Input[0].Sources if str(s.Attributes.GetTopLevel.DocObject.ComponentGuid) == 'f3a8e5c2-7b41-4d09-bc52-1d6e8a3f4c70'), None)
+                if grid is None or grid.Params.Output[0].VolatileDataCount != 1: continue
+                original = data(grid.Params.Output[0])[0]
+                d, g = solve(original, raw, data(source.Params.Input[1]), data(source.Params.Input[2]))
+                displays, display = color_pipeline(d, g, original, 'Open user definition')
+                report['user_cases'].append({'original_points':len(raw), 'original_faces':original.Faces.Count, 'original_vertices':original.Vertices.Count, 'filtered_faces':display.Faces.Count})
+                if globals().get('SPACEVISUAL_SAVE_PROOF', False):
+                    from System.Drawing import PointF
+                    g.Attributes.Pivot = PointF(300, 300); g.Hidden = True
+                    metric = displays[0].Params.Input[2].Sources[0].Attributes.GetTopLevel.DocObject
+                    metric.Attributes.Pivot = PointF(650, 300)
+                    for index, c in enumerate(displays):
+                        c.Attributes.Pivot = PointF(950, 100 + 170 * index)
+                        c.Hidden = index != 4
+                    panel = Grasshopper.Kernel.Special.GH_Panel()
+                    panel.CreateAttributes(); panel.Attributes.Pivot = PointF(40, 40)
+                    panel.UserText = 'Space Visual 0.2.1: filtered mesh proof\nOriginal grid data is internalized in Graph2D.\n{0} source faces -> {1} graph points and mesh faces.\nConnectivity preview is enabled. Toggle other Colorize previews to compare metrics.'.format(original.Faces.Count, display.Faces.Count)
+                    d.AddObject(panel, False)
+                    archive = GH_DocumentIO(); archive.Document = d
+                    proof = os.path.join(report_dir, 'SpaceVisual-0.2.1-filtered-mesh.gh')
+                    check(archive.SaveQuiet(proof), 'User-case proof definition saved')
+                    report['proof'] = proof
+        report['passed'] = True
+    except:
+        report['error'] = traceback.format_exc()
+    finally:
+        for d in documents: d.Dispose()
+        with open(os.path.join(report_dir, 'filtered-mesh-regression.json'), 'w') as f: json.dump(report, f, indent=2)
+
+Rhino.RhinoApp.InvokeOnUiThread(System.Action(run))

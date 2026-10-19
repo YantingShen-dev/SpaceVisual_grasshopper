@@ -1,7 +1,7 @@
 # Development and regression testing
 
 These tools build or verify the current source. They are not archived plugin versions.
-The installed production plugin is Space Visual 0.2.0; the optional test build is created only on request.
+The current production version is Space Visual 0.2.1; the optional test build is created only on request.
 See [Project layout](PROJECT-STRUCTURE.md) for binary, package and report locations.
 
 To check the production binary in an already open Rhino host, run
@@ -117,3 +117,7 @@ It compares every edge of a 64-point L-shaped room against an independent analyt
 wall-intersection calculation, repeats the graph solve three times, and checks
 the downstream VGA/Colorize chain. Results and the timestamped example are saved
 under `artifacts/validation/`. Existing GH documents are preserved.
+
+## Filtered mesh regression
+
+`tests/regression/filtered-mesh-regression.py2` verifies the production face-grid → Graph2D → VGA → Colorize chain in temporary documents. It also reads any compatible open single-branch View Grid case without editing the active canvas. Reports go to `artifacts/validation/filtered-mesh-regression.json`. Override `SPACEVISUAL_CANDIDATE_PATH` to check a staged build. No new Rhino process is started.

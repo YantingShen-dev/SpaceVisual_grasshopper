@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 — 2026-10-19
+
+- Build Graph 2D accepts an optional original face-sampled `_Grid Mesh` (`_M`) and outputs `Filtered Mesh` (`M`). Retained faces follow the same indices as filtered graph points and VGA values. Existing input/output positions are unchanged.
+- Connect View Grid Mesh → Graph2D `_M` → filtered `M` → Colorize Mesh. If the new ports are absent in a saved definition, place a fresh Graph2D component. Hide the original grid preview.
+- Colorize now rejects blended Values lists with different lengths instead of partially averaging misaligned data; count errors explain the filtered-mesh connection.
+- Verified in an existing Windows Rhino 8 session against the reported case: 372 source faces / 417 vertices → 318 retained faces and values. All five VGA heatmaps render successfully. Regression checks cover source-mesh preservation, face order, all/none excluded, graph-only compatibility and mismatched blend lengths.
+- Point filtering removes complete sampled cells; it does not precisely trim cells along obstacle outlines. `_M` supports one sample per face, not vertex-sampled grids.
+
 ## 0.2.0 — 2026-10-19
 
 ### Fixed

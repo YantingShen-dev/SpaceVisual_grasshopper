@@ -45,6 +45,11 @@ namespace SpaceVisual.Analyze2D
                 "Connect the same outer boundary used by View Grid here. With no boundary, the analysis extent is unrestricted.",
                 GH_ParamAccess.list);
             pm[bIdx].Optional = true;
+            int mIdx = pm.AddMeshParameter("_Grid Mesh", "_M",
+                "Optional original View Grid mesh, with one face per input point in the same order. " +
+                "Faces at rejected points are removed. Connect output M to Colorize instead of the original mesh. " +
+                "Vertex-sampled meshes are not supported by this input.", GH_ParamAccess.item);
+            pm[mIdx].Optional = true;
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pm)
@@ -58,6 +63,9 @@ namespace SpaceVisual.Analyze2D
             pm.AddPointParameter("Filtered Points", "P", "Retained points in graph/VGA order. Preview these instead of the original grid points.", GH_ParamAccess.list);
             pm.AddIntegerParameter("Kept Indices", "I", "Zero-based indices in the original Points list, in graph order. Use to select matching source data or grid faces before colorizing compact VGA values.", GH_ParamAccess.list);
             pm.AddIntegerParameter("Removed Indices", "R", "Zero-based indices of rejected input points. Graph/VGA outputs do not include these points.", GH_ParamAccess.list);
+            pm.AddMeshParameter("Filtered Mesh", "M",
+                "Grid faces retained in graph/VGA order. Connect to Colorize with graph metrics; hide the original grid preview. " +
+                "Requires the original face-sampled mesh at _M.", GH_ParamAccess.item);
         }
 
         protected override void SolveInstance(IGH_DataAccess da)
@@ -72,6 +80,14 @@ namespace SpaceVisual.Analyze2D
             }
             da.GetDataList(1, obstacles);
             da.GetDataList(2, boundaries);
+            Mesh? gridMesh = null;
+            da.GetData(3, ref gridMesh);
+            if (gridMesh != null && (!gridMesh.IsValid || gridMesh.Faces.Count != pts.Count))
+            {
+                Fail("_Grid Mesh must be valid and have one face per original input point, in the same order. " +
+                     $"Received {gridMesh.Faces.Count} faces and {pts.Count} points. Use the face-sampled View Grid mesh.");
+                return;
+            }
             const double tolerance = 1e-6;
             double z = pts[0].Z;
             var plane = new Plane(new Point3d(0, 0, z), Vector3d.ZAxis);
@@ -174,6 +190,17 @@ namespace SpaceVisual.Analyze2D
             da.SetDataList(2, ptArr);
             da.SetDataList(3, kept);
             da.SetDataList(4, removed);
+            if (gridMesh != null)
+            {
+                // Preserve source face order and attributes without changing the input mesh.
+                var filteredMesh = gridMesh.DuplicateMesh();
+                filteredMesh.Faces.Clear();
+                foreach (int index in kept) filteredMesh.Faces.AddFace(gridMesh.Faces[index]);
+                filteredMesh.Vertices.CullUnused();
+                filteredMesh.Normals.ComputeNormals();
+                filteredMesh.Compact();
+                da.SetData(5, filteredMesh);
+            }
         }
     }
 }

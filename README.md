@@ -8,7 +8,7 @@ Explore what a viewpoint can see, compare spatial visibility across a site, and 
 
 **English** · [简体中文](README.zh-CN.md)
 
-**Version 0.2.0 for Windows:** concave-boundary visibility fixes and automatic removal of points inside solid obstacles. [Release notes and upgrade guide](CHANGELOG.md).
+**Version 0.2.1 for Windows:** filtered grid meshes now stay aligned with graph metrics and heatmaps, alongside concave-boundary visibility and solid-obstacle point filtering. [Release notes and upgrade guide](CHANGELOG.md).
 
 [Download & install](#downloads-and-installation) · [Quick start](#quick-start) · [Components](#components) · [Build from source](#building-from-source)
 
@@ -47,7 +47,7 @@ Use **Isovist 3D** to study visibility from analysis points, and **Received Visi
 
 | Platform | Download | Compatibility |
 | --- | --- | --- |
-| Windows 0.2.0 | [SpaceVisual.gha](bin/Release/SpaceVisual.gha) · [Release assets](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.0) | Production Release build; targets Rhino 7 (SR0+) and Rhino 8; verified in Rhino 8 |
+| Windows 0.2.1 | [SpaceVisual.gha](bin/Release/SpaceVisual.gha) · [Release assets](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.1) | Production Release build; targets Rhino 7 (SR0+) and Rhino 8; verified in Rhino 8 |
 
 **Mac:** no current binary is distributed. The old 0.1.0 download has been removed; a new Mac build needs runtime validation before publication.
 
@@ -75,13 +75,13 @@ See [MAC-TESTING.md](MAC-TESTING.md) for the Mac build and validation checklist.
 2. Connect the boundary to **View Grid**. Its `M` output is the analysis mesh; `P` contains one point per mesh face.
 3. Connect grid `P` to **Build Graph 2D → Points**, the **outer boundary** to `_Boundary` (`_B`), and **internal obstacles** to `_Obstacles` (`_O`). Closed obstacles remove points inside/on them before graph construction; open walls only block sightlines. Points outside all boundaries are also removed. View Grid does not pass boundary curves through its Points output.
 4. Connect the resulting `Graph` to **VGA Metrics 2D**. Start with `Connectivity`, the number of directly visible neighbors.
-5. Keep only the grid faces listed by Graph2D's **Kept Indices** (`I`), preserving their order, and connect that mesh to **Colorize → Mesh** with the compact metric values at `Values 0`. Optionally connect **Parameter** to set the palette and legend. If no points were removed, the original grid mesh can be used directly.
+5. Connect **View Grid → Mesh** to **Graph2D → _Grid Mesh (`_M`)**, then **Graph2D → Filtered Mesh (`M`)** to **Colorize → Mesh**. Connect compact metric values to `Values 0`. The filtered mesh contains one face per retained graph point; obstacle cells are removed automatically. Optionally connect **Parameter** for the palette and legend.
 
-Use native components for the mesh selection: **Deconstruct Mesh** → faces into **List Item**, with Graph2D `I` as the indices → selected faces and the original vertices into **Construct Mesh** → **Colorize**.
+For existing definitions, you can also select faces manually: **Deconstruct Mesh** → faces into **List Item**, using Graph2D `I` → **Construct Mesh** with the original vertices → **Colorize**. The `_M` input requires the original face-sampled grid, in the same order as the original Points list; vertex-sampled meshes are not accepted. If Isovist 2D is to use this filtered mesh, feed it Graph2D's filtered `P` as well. All blended Values series must have the same length and spatial order.
 
 Graph2D's **Filtered Points** (`P`), graph nodes and VGA values share the same compact order. **Removed Indices** (`R`) identifies rejected input points. Hide the original grid/point preview to see only the filtered points; downstream components cannot hide previews upstream. The face-index correspondence above applies to **View Grid**, which emits one face-center point per face. **View Grid Triangle** uses vertex samples for curve inputs, but face centers for mesh/surface/Brep inputs; match the relevant correspondence when filtering its display mesh. Filtering sample points does not geometrically trim a mesh at obstacle outlines.
 
-For older definitions that merged outer and inner curves into `_O`, move the outer curves to `_B`. Closed `_O` curves now mean solid exclusion regions, including nested curves; they are not interpreted as outer room boundaries. All points and curves must lie in the same XY plane. If an older saved component does not expose `_B`, place a fresh Build Graph 2D and reconnect it.
+For older definitions that merged outer and inner curves into `_O`, move the outer curves to `_B`. Closed `_O` curves now mean solid exclusion regions, including nested curves; they are not interpreted as outer room boundaries. All points and curves must lie in the same XY plane. If an older saved component does not expose `_B` or `_M`, place a fresh Build Graph 2D and reconnect it.
 
 ### Try another question
 

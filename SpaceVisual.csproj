@@ -9,9 +9,9 @@
     <UseWindowsForms>false</UseWindowsForms>
     <UseWpf>false</UseWpf>
 
-    <Version>0.2.0</Version>
-    <AssemblyVersion>0.2.0.0</AssemblyVersion>
-    <FileVersion>0.2.0.0</FileVersion>
+    <Version>0.2.1</Version>
+    <AssemblyVersion>0.2.1.0</AssemblyVersion>
+    <FileVersion>0.2.1.0</FileVersion>
     <Title>Space Visual</Title>
     <Authors>POLY LAB</Authors>
     <Company>POLY LAB</Company>

@@ -45,7 +45,7 @@
 
 | 平台 | 下载 | 兼容说明 |
 | --- | --- | --- |
-| Windows 0.2.0 | [SpaceVisual.gha](bin/Release/SpaceVisual.gha) · [发布下载](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.0) | 正式 Release 构建，目标支持 Rhino 7（SR0+）与 Rhino 8；已在 Rhino 8 验证 |
+| Windows 0.2.1 | [SpaceVisual.gha](bin/Release/SpaceVisual.gha) · [发布下载](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.1) | 正式 Release 构建，目标支持 Rhino 7（SR0+）与 Rhino 8；已在 Rhino 8 验证 |
 
 目前只提供 Windows 正式版 `.gha`。旧 Mac 0.1.0 二进制已移除；新版 Mac 需要重新构建并验证后再发布。
 
@@ -59,7 +59,7 @@ Windows 常用目录为 `%APPDATA%\Grasshopper\Libraries\`。Mac 请以 Grasshop
 
 只保留一份 Space Visual；关闭 Rhino 后移除旧版，避免重复组件。
 
-本次 Windows 正式版为 **0.2.0**，升级步骤见 [更新记录](CHANGELOG.md)。同时检查 Rhino PackageManager 中是否另有旧版。临时测试版定义需要换成正式组件，再移除 **Space Visual test** 插件；两个版本的自定义 Graph、Parameter 类型不能混接。仓库仅保留 `bin/Release/SpaceVisual.gha`，不再提供 Debug、旧 Mac 或测试版二进制。
+本次 Windows 正式版为 **0.2.1**，升级步骤见 [更新记录](CHANGELOG.md)。同时检查 Rhino PackageManager 中是否另有旧版。临时测试版定义需要换成正式组件，再移除 **Space Visual test** 插件；两个版本的自定义 Graph、Parameter 类型不能混接。仓库仅保留 `bin/Release/SpaceVisual.gha`，不再提供 Debug、旧 Mac 或测试版二进制。
 
 ## 快速开始
 
@@ -69,13 +69,13 @@ Windows 常用目录为 `%APPDATA%\Grasshopper\Libraries\`。Mac 请以 Grasshop
 2. 将边界接入 **View Grid**，获得分析网格 `M` 和每个网格面的中心点 `P`。
 3. 将网格 `P` 接到 **Build Graph 2D → Points**，**外边界**接 `_Boundary`（`_B`），**内部障碍物**接 `_Obstacles`（`_O`）。建图前会剔除闭合障碍物内部及轮廓上的点，以及所有外边界之外的点；开放墙线只遮挡视线。View Grid 的点输出不会携带边界曲线。
 4. 将输出的 `Graph` 接入 **VGA Metrics 2D**。可以先看 `Connectivity`，即直接可见的相邻节点数量。
-5. 按 Graph2D 的 **Kept Indices**（`I`）保留原网格对应的面，维持索引顺序，再将筛选后的网格接到 **Colorize → Mesh**，精简后的指标接到 `Values 0`。可选接入 **Parameter** 调整颜色与图例。没有点被剔除时，可以直接使用原网格。
+5. 将 **View Grid → Mesh** 接到 **Graph2D → _Grid Mesh（`_M`）**，再将 **Graph2D → Filtered Mesh（`M`）** 接到 **Colorize → Mesh**，指标接到 `Values 0`。输出网格会同步删除被剔除点对应的面，与图节点及数值一一对应。可选接入 **Parameter** 调整颜色与图例。
 
-可用原生组件完成网格筛选：**Deconstruct Mesh** 的 Faces 接 **List Item**，Graph2D 的 `I` 接索引；筛选后的 Faces 与原 Vertices 接 **Construct Mesh**，再接 **Colorize**。
+已有定义也可以继续用原生组件筛选：**Deconstruct Mesh** 的 Faces 接 **List Item**，Graph2D 的 `I` 接索引；筛选后的 Faces 与原 Vertices 接 **Construct Mesh**。`_M` 必须使用与原始 Points 同序、每面一个采样点的原网格，不适用于顶点采样网格。如果 Isovist 2D 也使用过滤后的网格，其 Points 应接 Graph2D 的过滤后 `P`；混合的多组 Values 必须数量相等、空间顺序一致。
 
 Graph2D 的 **Filtered Points**（`P`）、图节点和 VGA 数值使用相同的过滤后顺序；**Removed Indices**（`R`）输出被剔除点的原始索引。关闭原网格/点的预览，改看过滤后点输出，才能不显示被剔除的输入点；下游组件不会关闭上游预览。上述面索引对应关系适用于每面输出一个中心点的 **View Grid**。**View Grid Triangle** 在曲线输入时使用顶点采样，网格/曲面/Brep 输入时使用面中心点；处理显示网格时应匹配对应关系。采样点过滤不等于沿障碍物轮廓精确裁剪网格。
 
-旧文件若将内外边界都接在 `_O`，应将外边界移到 `_B`。现在闭合 `_O` 曲线均表示实体排除区，嵌套障碍物也不会自动成为空洞。所有点与曲线应处于同一个 XY 平面。如果旧定义中的组件没有 `_B` 输入，请放置新版 Build Graph 2D 并重新接线。
+旧文件若将内外边界都接在 `_O`，应将外边界移到 `_B`。现在闭合 `_O` 曲线均表示实体排除区，嵌套障碍物也不会自动成为空洞。所有点与曲线应处于同一个 XY 平面。如果旧定义中的组件没有 `_B` 或 `_M` 输入，请放置新版 Build Graph 2D 并重新接线。
 
 ### 换一个分析问题
 

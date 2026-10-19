@@ -102,6 +102,13 @@ namespace SpaceVisual.Visualize
                     series.Add(vals);
             }
             if (series.Count == 0) { Fail("No values."); return; }
+            foreach (var values in series)
+                if (values.Count != series[0].Count)
+                {
+                    Fail("All Values inputs must have the same length and spatial order. " +
+                         "Do not blend unfiltered grid values with filtered graph values.");
+                    return;
+                }
 
             // Equal-weight average across series, NaN-safe.
             int len = series[0].Count;
@@ -134,7 +141,9 @@ namespace SpaceVisual.Visualize
                     coloredMesh = MeshColorizer.ColorByFaces(mesh, colors);
                 else
                 {
-                    Fail($"Values length {combined.Length} matches neither vertex count {vCount} nor face count {fCount}.");
+                    Fail($"Values length {combined.Length} matches neither vertex count {vCount} nor face count {fCount}. " +
+                         "After Graph2D point filtering, connect the original View Grid mesh to Graph2D _M " +
+                         "and its Filtered Mesh output M here (or select source faces using Kept Indices I).");
                     return;
                 }
             }

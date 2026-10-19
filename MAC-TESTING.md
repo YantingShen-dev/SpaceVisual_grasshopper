@@ -1,6 +1,6 @@
 # Space Visual — Mac / Rhino 7
 
-> 旧 Mac 0.1.0 二进制已移除，目前不提供 Mac 插件下载。Mac 0.2.0 需要在 Mac 重新构建并验证；下文保留开发与验收步骤。
+> 旧 Mac 0.1.0 二进制已移除，目前不提供 Mac 插件下载。Mac 0.2.1 需要在 Mac 重新构建并验证；下文保留开发与验收步骤。
 
 构建目标为 **Rhino 7 for Mac / Mono / .NET Framework 4.8**，平台为 AnyCPU。构建脚本从项目文件读取当前版本，正式组件 GUID 保持稳定。
 
