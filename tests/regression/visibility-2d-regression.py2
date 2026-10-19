@@ -8,7 +8,9 @@ import Grasshopper
 from Rhino.Geometry import Point3d, PolylineCurve, Curve, Vector3d, LineCurve
 from System.Collections.Generic import List
 
-root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+report_dir = os.path.join(root, 'artifacts', 'validation')
+if not os.path.isdir(report_dir): os.makedirs(report_dir)
 report = {'rhino': str(Rhino.RhinoApp.Version), 'assemblies': {}}
 
 def polygon(coords):
@@ -66,7 +68,7 @@ def run():
     except:
         report['error'] = traceback.format_exc()
     finally:
-        with open(os.path.join(root, 'bin', 'Test', globals().get('SPACEVISUAL_REPORT_NAME', 'visibility-2d-regression.json')), 'w') as stream:
+        with open(os.path.join(root, 'artifacts', 'validation', globals().get('SPACEVISUAL_REPORT_NAME', 'visibility-2d-regression.json')), 'w') as stream:
             json.dump(report, stream, indent=2)
 
 Rhino.RhinoApp.InvokeOnUiThread(System.Action(run))

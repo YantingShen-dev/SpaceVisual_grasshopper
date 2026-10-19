@@ -6,3 +6,7 @@ bin/*
 !bin/Release/
 bin/Release/*
 !bin/Release/SpaceVisual.gha
+
+# Generated development reports and examples
+artifacts/
+__pycache__/

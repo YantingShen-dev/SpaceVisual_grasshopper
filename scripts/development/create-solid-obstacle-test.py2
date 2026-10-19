@@ -15,12 +15,13 @@ from Grasshopper.Kernel.Special import GH_Panel
 from Grasshopper.Kernel.Types import GH_Point,GH_Curve
 from Rhino.Geometry import Point3d,PolylineCurve,LineCurve,Plane
 from System.Drawing import PointF,RectangleF,Color,Font
-root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-out=os.path.join(root,'bin','Test');report={'passed':False}
+root=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+out=os.path.join(root,'artifacts','validation');report={'passed':False}
+if not os.path.isdir(out): os.makedirs(out)
 def run():
     doc=None
     try:
-        candidate=System.Reflection.Assembly.Load(System.IO.File.ReadAllBytes(os.path.join(out,'SpaceVisual.Test.gha')))
+        candidate=System.Reflection.Assembly.Load(System.IO.File.ReadAllBytes(os.path.join(root,'bin','Test','SpaceVisual.Test.gha')))
         loaded=next((a for a in System.AppDomain.CurrentDomain.GetAssemblies() if a.GetName().Name=='SpaceVisual.Test' and a.Location),None)
         current=loaded is not None and loaded.ManifestModule.ModuleVersionId==candidate.ManifestModule.ModuleVersionId
         assembly=loaded if current else candidate

@@ -8,7 +8,7 @@ import plistlib
 import subprocess
 import xml.etree.ElementTree as ET
 
-root = pathlib.Path(__file__).resolve().parents[1]
+root = pathlib.Path(__file__).resolve().parents[2]
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--rhino', type=pathlib.Path, default=pathlib.Path('/Applications/Rhino 7.app'))
 p.add_argument('--compiler', type=pathlib.Path, required=True, help='Roslyn 4.8 tasks/net472/csc.exe')

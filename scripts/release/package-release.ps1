@@ -1,13 +1,21 @@
 param([string]$YakPath = (Join-Path $env:ProgramFiles 'Rhino 8\System\Yak.exe'))
 $ErrorActionPreference = 'Stop'
-$repo = Split-Path $PSScriptRoot -Parent
+$repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 [xml]$project = Get-Content -LiteralPath (Join-Path $repo 'SpaceVisual.csproj')
 $version = [string]$project.Project.PropertyGroup[0].Version
-$stage = Join-Path $repo "dist\$version\package"
+$stageRoot = [IO.Path]::GetFullPath((Join-Path $repo 'artifacts\packaging'))
+$stage = Join-Path $stageRoot ([Guid]::NewGuid().ToString('N'))
 $release = Join-Path $repo "dist\$version"
-New-Item -ItemType Directory -Path $stage -Force | Out-Null
 $binary = Join-Path $repo 'bin\Release\SpaceVisual.gha'
 if (-not (Test-Path -LiteralPath $binary)) { throw 'Build Release first.' }
+if (-not (Test-Path -LiteralPath $YakPath -PathType Leaf)) { throw 'Yak executable not found; supply -YakPath.' }
+# Published assets must not be silently regenerated with different checksums.
+foreach ($name in @('SpaceVisual.gha', "SpaceVisual-$version-Windows.zip", "spacevisual-$version-rh7_0-win.yak", 'SHA256SUMS.txt')) {
+    if (Test-Path -LiteralPath (Join-Path $release $name)) { throw "Release asset already exists: $name. Use a new version for a new release." }
+}
+New-Item -ItemType Directory -Path $stage -Force | Out-Null
+New-Item -ItemType Directory -Path $release -Force | Out-Null
+try {
 Copy-Item -LiteralPath $binary -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $repo 'LICENSE'),(Join-Path $repo 'README.md'),(Join-Path $repo 'CHANGELOG.md') -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $repo 'icon\Head icon.png') -Destination (Join-Path $stage 'icon.png') -Force
@@ -46,3 +54,10 @@ $hashes = Get-ChildItem -LiteralPath $release -File | Where-Object { $_.Extensio
 }
 $hashes | Set-Content -LiteralPath (Join-Path $release 'SHA256SUMS.txt') -Encoding utf8NoBOM
 Write-Output "Release assets: $release"
+} finally {
+    $resolvedStage = [IO.Path]::GetFullPath($stage)
+    if (-not $resolvedStage.StartsWith($stageRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Unsafe staging path: $resolvedStage"
+    }
+    if (Test-Path -LiteralPath $resolvedStage) { Remove-Item -LiteralPath $resolvedStage -Recurse -Force }
+}

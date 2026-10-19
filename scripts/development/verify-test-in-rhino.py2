@@ -15,8 +15,9 @@ from Grasshopper.Kernel.Types import GH_Curve
 from System.Reflection import BindingFlags
 from System.Drawing import PointF
 
-root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-output_dir = os.path.join(root, 'bin', 'Test')
+root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+output_dir = os.path.join(root, 'artifacts', 'validation')
+if not os.path.isdir(output_dir): os.makedirs(output_dir)
 report_path = os.path.join(output_dir, 'rhino-verification.json')
 plugin_path = os.path.join(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData), 'Grasshopper', 'Libraries', 'SpaceVisual.Test.gha')
 test_id = System.Guid('b5c4b3b4-e416-5e3e-88ef-fef1b114cd63')

@@ -6,7 +6,7 @@
 
 **之前的旧版曾在 Intel Mac / Rhino 7.8 上验证可用，不能据此认定当前源码已通过 Mac 验证。** 编译成功和独立 Mono 测试不能替代 Rhino 内的几何计算、图标及视口检查。对外发布前请完成下列测试。
 
-Windows 正式构建保存在 `bin/Release/SpaceVisual.gha`。Mac 构建脚本会生成本地忽略的 `bin/Mac/Release/SpaceVisual.gha`；仓库不保留该二进制。Windows 发布附件由 `scripts/package-release.ps1` 生成到忽略的 `dist/` 目录。
+Windows 正式构建保存在 `bin/Release/SpaceVisual.gha`。Mac 构建脚本会生成本地忽略的 `bin/Mac/Release/SpaceVisual.gha`；仓库不保留该二进制。Windows 发布附件由 `scripts/release/package-release.ps1` 生成到忽略的 `dist/` 目录。
 
 ## 本机安装
 
@@ -40,8 +40,8 @@ Windows 正式构建保存在 `bin/Release/SpaceVisual.gha`。Mac 构建脚本�
 需要 Python 3、Rhino 7 for Mac 和微软 `Microsoft.Net.Compilers.Toolset` 4.8.0（从 NuGet 下载 `.nupkg`，作为 ZIP 解压）。使用包内 `tasks/net472/csc.exe`：
 
 ```sh
-python3 scripts/build-mac.py --compiler /absolute/path/to/tasks/net472/csc.exe
-python3 scripts/test-mac.py --compiler /absolute/path/to/tasks/net472/csc.exe
+python3 scripts/mac/build-mac.py --compiler /absolute/path/to/tasks/net472/csc.exe
+python3 scripts/mac/test-mac.py --compiler /absolute/path/to/tasks/net472/csc.exe
 ```
 
 输出：`bin/Mac/Release/SpaceVisual.gha`。`build-info.json` 记录源码提交、编译环境和 SHA-256；`managed-test-results.txt` 记录独立 Mono 检查。构建脚本不联网、不自动安装、不上传。

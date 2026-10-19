@@ -1,5 +1,7 @@
 # Space Visual
 
+[Project layout](PROJECT-STRUCTURE.md) — current release files, development tools and generated outputs.
+
 **Visibility and sightline analysis for Rhino + Grasshopper.**
 
 Explore what a viewpoint can see, compare spatial visibility across a site, and identify which building surfaces are seen from a set of viewpoints. Space Visual brings **11 components** into one Grasshopper tab, from analysis grids to viewport heatmaps.
@@ -157,8 +159,8 @@ Requires Python 3, Rhino 7 for Mac, and **Microsoft.Net.Compilers.Toolset 4.8.0*
 From the repository root:
 
 ```sh
-python3 scripts/build-mac.py --compiler /absolute/path/to/tasks/net472/csc.exe
-python3 scripts/test-mac.py --compiler /absolute/path/to/tasks/net472/csc.exe
+python3 scripts/mac/build-mac.py --compiler /absolute/path/to/tasks/net472/csc.exe
+python3 scripts/mac/test-mac.py --compiler /absolute/path/to/tasks/net472/csc.exe
 ```
 
 Both scripts default to `/Applications/Rhino 7.app`; use `--rhino "/path/to/Rhino 7.app"` for another location. No system .NET installation is required. The build script uses the installed Mac Rhino/Grasshopper SDK; compatibility with older service releases must be tested separately.

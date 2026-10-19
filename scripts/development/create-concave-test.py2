@@ -11,8 +11,9 @@ from Grasshopper.Kernel.Types import GH_Curve
 from Rhino.Geometry import Point3d, PolylineCurve
 from System.Drawing import PointF
 
-root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-output_dir = os.path.join(root, 'bin', 'Test')
+root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+output_dir = os.path.join(root, 'artifacts', 'validation')
+if not os.path.isdir(output_dir): os.makedirs(output_dir)
 report = {'passed': False, 'checks': []}
 
 def check(condition, label):

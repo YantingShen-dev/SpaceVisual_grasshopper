@@ -8,7 +8,9 @@ import Grasshopper
 from Grasshopper.Kernel import GH_Document, GH_RuntimeMessageLevel
 from Grasshopper.Kernel.Types import GH_Point, GH_Curve
 from Rhino.Geometry import Point3d, PolylineCurve, LineCurve, Circle, Plane
-root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+root=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+report_dir = os.path.join(root, 'artifacts', 'validation')
+if not os.path.isdir(report_dir): os.makedirs(report_dir)
 report={'passed':False,'checks':[]}
 def check(ok,name):
     if not ok: raise Exception(name)
@@ -72,7 +74,7 @@ def run():
         check(node.Params.Output[1].VolatileDataCount==0 and node.Params.Output[2].VolatileDataCount==0,'Recompute clears old points and sightlines when all points become excluded')
         # Optional user case: independently classify the captured polygons, then
         # select the previously independently verified finite-segment edges.
-        actual_path=os.path.join(root,'bin','Test','actual-case-verified.json')
+        actual_path=os.path.join(root,'artifacts','validation','actual-case-verified.json')
         if os.path.exists(actual_path):
             source=json.load(open(actual_path));raw=source['points'];bounds=source['boundaries']
             def inside(p,polygon):
@@ -92,5 +94,5 @@ def run():
     except:report['error']=traceback.format_exc()
     finally:
         for d in docs:d.Dispose()
-        with open(os.path.join(root,'bin','Test',globals().get('SPACEVISUAL_REPORT_NAME','graph-point-filter-regression.json')),'w') as f:json.dump(report,f,indent=2)
+        with open(os.path.join(root,'artifacts','validation',globals().get('SPACEVISUAL_REPORT_NAME','graph-point-filter-regression.json')),'w') as f:json.dump(report,f,indent=2)
 Rhino.RhinoApp.InvokeOnUiThread(System.Action(run))

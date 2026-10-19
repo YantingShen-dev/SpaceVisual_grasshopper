@@ -1,4 +1,11 @@
-# Space Visual test — local Rhino 8 workflow
+# Development and regression testing
+
+These tools build or verify the current source. They are not archived plugin versions.
+The installed production plugin is Space Visual 0.2.0; the optional test build is created only on request.
+See [Project layout](PROJECT-STRUCTURE.md) for binary, package and report locations.
+
+To check the production binary in an already open Rhino host, run
+`tests/regression/run-production-regression.py2`. Reports go to `artifacts/validation/`.
 
 The `Test` configuration compiles the same source as production into a separate
 `SpaceVisual.Test.gha`. It includes portable PDB symbols, disables optimization,
@@ -13,15 +20,15 @@ Production and test plugins can therefore be installed together.
 Run from the repository root in PowerShell:
 
 ```powershell
-.\scripts\build-test.ps1 -Install
+.\scripts\development\build-test.ps1 -Install
 ```
 
 Omit `-Install` to build only. If Grasshopper uses a custom components folder,
 pass `-LibrariesPath 'C:\path\to\Libraries'`.
 
 The script installs only `SpaceVisual.Test.gha` and `SpaceVisual.Test.pdb`.
-An existing test build is backed up under `bin/TestBackups/`; installation hashes
-are recorded in `bin/Test/installation.json`. It never publishes to GitHub.
+An existing test build is replaced directly, without retaining old binaries; installation hashes
+are recorded in `artifacts/validation/installation.json`. It never publishes to GitHub.
 
 After subsequent rebuilds, save your work and restart the Rhino instance used for
 testing. Closing only the Grasshopper window does not unload its assemblies.
@@ -80,13 +87,13 @@ graph order. For View Grid heatmaps, keep mesh faces at `I` in order before feed
 the compact values to Colorize. Hide upstream grid previews when checking holes.
 Old definitions must move their outer boundary from `_O` to `_B`.
 
-Run `tests/graph-point-filter-regression.py2` for point containment, open walls,
+Run `tests/regression/graph-point-filter-regression.py2` for point containment, open walls,
 curved and nested obstacles, multiple boundaries, empty/single-node graphs,
 invalid geometry, recomputation and VGA ordering. The isolated candidate does not
 replace the plugin already loaded in Rhino. Restart after installation to use the
 new input/output interface in registered test components.
 
-Run `scripts/create-solid-obstacle-test.py2` to save a new desktop `.gh`/`.3dm`
+Run `scripts/development/create-solid-obstacle-test.py2` to save a new desktop `.gh`/`.3dm`
 comparison. It contrasts separate open wall segments (no point exclusion) with
 the same outline as a closed solid obstacle. Original input previews are hidden;
 filtered point and line outputs are visible. If the registered test build is old,
@@ -99,14 +106,14 @@ in the shared 2D occluder. It prevents closed room boundaries from blocking vali
 interior sightlines, and prevents Isovist rays from selecting hits behind the origin
 or beyond the configured radius. Wall overlaps remain blocking.
 
-Run `tests/visibility-2d-regression.py2` in a selected Rhino test session through
-RhinoCode. It writes `bin/Test/visibility-2d-regression.json`, comparing loaded
+Run `tests/regression/visibility-2d-regression.py2` in a selected Rhino test session through
+RhinoCode. It writes `artifacts/validation/visibility-2d-regression.json`, comparing loaded
 production/test assemblies with an isolated byte-loaded candidate from `bin/Test`.
 The candidate is not registered in Grasshopper and does not update existing nodes.
 
 After installing and restarting the test session, run
-`scripts/create-concave-test.py2` to create a separate, correctly wired GH example.
+`scripts/development/create-concave-test.py2` to create a separate, correctly wired GH example.
 It compares every edge of a 64-point L-shaped room against an independent analytic
 wall-intersection calculation, repeats the graph solve three times, and checks
 the downstream VGA/Colorize chain. Results and the timestamped example are saved
-under `bin/Test/`. Existing GH documents are preserved.
+under `artifacts/validation/`. Existing GH documents are preserved.
