@@ -1,13 +1,12 @@
 # Space Visual — Mac / Rhino 7
 
-> Windows 已更新至 0.2.0。此处现有 Mac 二进制仍为 0.1.0，不包含本次外边界/实体障碍物修复；Mac 0.2.0 需要在 Mac 重新构建并验证。
+> 旧 Mac 0.1.0 二进制已移除，目前不提供 Mac 插件下载。Mac 0.2.0 需要在 Mac 重新构建并验证；下文保留开发与验收步骤。
 
-本包由仓库源码重新编译，目标为 **Rhino 7 for Mac / Mono / .NET Framework 4.8**。
-编译所用 SDK：本机 Rhino **7.8**；平台：AnyCPU。版本和组件 GUID 保持 0.1.0 不变，方便旧 GH 文件识别。
+构建目标为 **Rhino 7 for Mac / Mono / .NET Framework 4.8**，平台为 AnyCPU。构建脚本从项目文件读取当前版本，正式组件 GUID 保持稳定。
 
-**作者已确认在 Intel Mac / Rhino 7.8 上本地可用。** 这不等于下列全部功能均已逐项验收；编译成功和独立 Mono 测试也不能替代 Rhino 内的几何计算、图标及视口检查。尚未验证 Rhino 8、Apple Silicon 或 Rhino 7.0–7.7。对外发布前请完成下列测试；不要把此包标为全 Mac/Rhino 版本通用。
+**之前的旧版曾在 Intel Mac / Rhino 7.8 上验证可用，不能据此认定当前源码已通过 Mac 验证。** 编译成功和独立 Mono 测试不能替代 Rhino 内的几何计算、图标及视口检查。对外发布前请完成下列测试。
 
-Windows 正式构建保存在 `bin/Release/SpaceVisual.gha`（旧下载路径 `bin/Debug/SpaceVisual.gha` 同步更新）；Mac 构建保存在 `bin/Mac/Release/SpaceVisual.gha`。Windows 发布附件由 `scripts/package-release.ps1` 生成到忽略的 `dist/` 目录。
+Windows 正式构建保存在 `bin/Release/SpaceVisual.gha`。Mac 构建脚本会生成本地忽略的 `bin/Mac/Release/SpaceVisual.gha`；仓库不保留该二进制。Windows 发布附件由 `scripts/package-release.ps1` 生成到忽略的 `dist/` 目录。
 
 ## 本机安装
 

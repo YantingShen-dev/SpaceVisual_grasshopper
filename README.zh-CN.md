@@ -44,9 +44,8 @@
 | 平台 | 下载 | 兼容说明 |
 | --- | --- | --- |
 | Windows 0.2.0 | [SpaceVisual.gha](bin/Release/SpaceVisual.gha) · [发布下载](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.0) | 正式 Release 构建，目标支持 Rhino 7（SR0+）与 Rhino 8；已在 Rhino 8 验证 |
-| Mac 0.1.0（旧版） | [SpaceVisual.gha](bin/Mac/Release/SpaceVisual.gha) | 原独立构建，已确认 Intel Mac / Rhino 7.8 可用；**尚不含 0.2.0 修复** |
 
-Mac 的 Rhino 8、Apple Silicon 与 Rhino 7.0–7.7 尚未验证。两个下载文件名称相同，请按平台选择；只需下载 `.gha`。
+目前只提供 Windows 正式版 `.gha`。旧 Mac 0.1.0 二进制已移除；新版 Mac 需要重新构建并验证后再发布。
 
 1. 点击对应平台的文件链接，再点击 GitHub 的 **Download raw file**。
 2. Windows 用户右键文件 → **属性 → 解除锁定**（若显示此选项）。
@@ -56,9 +55,9 @@ Mac 的 Rhino 8、Apple Silicon 与 Rhino 7.0–7.7 尚未验证。两个下载�
 
 Windows 常用目录为 `%APPDATA%\Grasshopper\Libraries\`。Mac 请以 Grasshopper 打开的目录为准，详细路径与验证清单见 [Mac 安装说明](MAC-TESTING.md)。
 
-Libraries 中只保留一份 Space Visual；旧版请移到目录外备份。Windows 与 Mac 版本共用组件 GUID，同时安装会产生重复组件。
+只保留一份 Space Visual；关闭 Rhino 后移除旧版，避免重复组件。
 
-本次 Windows 正式版为 **0.2.0**，升级步骤见 [更新记录](CHANGELOG.md)。同时检查 Rhino PackageManager 中是否另有旧版。临时测试版定义需要换成正式组件，再移除 **Space Visual test** 插件；两个版本的自定义 Graph、Parameter 类型不能混接。为兼容原下载链接，`bin/Debug/SpaceVisual.gha` 同步为相同的 0.2.0 正式二进制。
+本次 Windows 正式版为 **0.2.0**，升级步骤见 [更新记录](CHANGELOG.md)。同时检查 Rhino PackageManager 中是否另有旧版。临时测试版定义需要换成正式组件，再移除 **Space Visual test** 插件；两个版本的自定义 Graph、Parameter 类型不能混接。仓库仅保留 `bin/Release/SpaceVisual.gha`，不再提供 Debug、旧 Mac 或测试版二进制。
 
 ## 快速开始
 

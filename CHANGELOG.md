@@ -29,4 +29,4 @@
 - Reported concave-room case: 358 candidate points, 30 excluded solid-obstacle points, 328 retained nodes, 32,779 edges; no unexpected or missing edges against the independent reference.
 - Heatmap pipeline: 328 graph points, five 328-value metric lists and 328 mesh faces, with matching spatial order.
 - Windows production build targets the Rhino 7 SR0 .NET Framework 4.8 SDK. Runtime verification of this update was performed in Rhino 8.
-- The separate Mac binary remains the previously verified **0.1.0** build; it does not include these fixes. Mac 0.2.0 requires a Mac rebuild and runtime validation.
+- The previous Mac **0.1.0** binary has been removed from current downloads. Mac 0.2.0 requires a Mac rebuild and runtime validation.

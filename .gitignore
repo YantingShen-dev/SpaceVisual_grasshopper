@@ -3,12 +3,6 @@
 obj/
 dist/
 bin/*
-!bin/Debug/
 !bin/Release/
 bin/Release/*
 !bin/Release/SpaceVisual.gha
-!bin/Mac/
-bin/Mac/*
-!bin/Mac/Release/
-bin/Mac/Release/*
-!bin/Mac/Release/SpaceVisual.gha

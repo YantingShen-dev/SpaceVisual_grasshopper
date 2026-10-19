@@ -46,11 +46,10 @@ Use **Isovist 3D** to study visibility from analysis points, and **Received Visi
 | Platform | Download | Compatibility |
 | --- | --- | --- |
 | Windows 0.2.0 | [SpaceVisual.gha](bin/Release/SpaceVisual.gha) · [Release assets](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.0) | Production Release build; targets Rhino 7 (SR0+) and Rhino 8; verified in Rhino 8 |
-| Mac 0.1.0 (legacy) | [SpaceVisual.gha](bin/Mac/Release/SpaceVisual.gha) | Previous separate Rhino 7 build; confirmed on Intel Mac / Rhino 7.8; does **not** contain the 0.2.0 fixes |
 
-**Mac compatibility:** Rhino 8 for Mac, Apple Silicon, and Rhino 7.0–7.7 have not been verified.
+**Mac:** no current binary is distributed. The old 0.1.0 download has been removed; a new Mac build needs runtime validation before publication.
 
-Open the file for your platform and click GitHub's **Download raw file** button. Both files are named `SpaceVisual.gha`; only the `.gha` is needed.
+Open `SpaceVisual.gha` above and click GitHub's **Download raw file** button. Only the `.gha` is needed.
 
 ### Windows
 
@@ -60,24 +59,11 @@ Open the file for your platform and click GitHub's **Download raw file** button.
 4. Close Rhino, copy the file into that folder, and restart Rhino + Grasshopper.
 5. Find the **Space Visual** tab.
 
-### Mac — Rhino 7
+Keep only one Space Visual installation. Close Rhino and remove older copies before installing.
 
-1. Download the Mac build above.
-2. In Grasshopper, open **File → Special Folders → Components Folder**.
-3. Quit Rhino, copy the file into that folder, then restart Rhino and run `Grasshopper`.
-4. Find the **Space Visual** tab.
+For upgrades, also check Rhino PackageManager for another installed copy. Remove the temporary **Space Visual test** plugin after converting test definitions to production components; the two editions' custom Graph and Parameter types cannot be mixed. `bin/Release/SpaceVisual.gha` is the sole checked-in plugin binary. Old Debug, Mac and test binaries are no longer distributed.
 
-The usual Rhino 7 for Mac components folder is:
-
-```text
-~/Library/Application Support/McNeel/Rhinoceros/7.0/Plug-ins/Grasshopper (b45a29b1-4343-4035-989e-044e8580d9cf)/Libraries/
-```
-
-Keep only one Space Visual installation in Libraries. Move older versions outside the folder before installing: the Windows and Mac builds share component GUIDs.
-
-For upgrades, also check Rhino PackageManager for another installed copy. Remove the temporary **Space Visual test** plugin after converting test definitions to production components; the two editions' custom Graph and Parameter types cannot be mixed. The legacy Windows download path `bin/Debug/SpaceVisual.gha` is also updated to the same 0.2.0 production binary for existing links.
-
-See [MAC-TESTING.md](MAC-TESTING.md) for the Chinese Mac installation guide and functional test checklist.
+See [MAC-TESTING.md](MAC-TESTING.md) for the Mac build and validation checklist.
 
 ## Quick start
 
@@ -156,7 +142,7 @@ With the .NET SDK installed, run:
 dotnet build -c Release
 ```
 
-Output: `bin/Release/SpaceVisual.gha`. This does not replace the original checked-in `bin/Debug` build.
+Output: `bin/Release/SpaceVisual.gha`, the only checked-in production binary.
 
 On Windows, Debug builds automatically copy the plugin to the existing `%APPDATA%\Grasshopper\Libraries\` directory. To disable this:
 
@@ -181,11 +167,11 @@ Output: **`bin/Mac/Release/SpaceVisual.gha`**. Local build metadata and managed 
 
 ### Validation
 
-The Mac managed checks pass for all 11 component types, 12 embedded PNG resources, serial and parallel graph traversal, priority queue ordering, and gradient values. The author has confirmed local use on Intel Mac / Rhino 7.8. This is not a complete test of every component or viewport behavior; use the [Rhino test checklist](MAC-TESTING.md) for further verification.
+The previous Mac build was tested locally on Intel Mac / Rhino 7.8. That does not validate the current source on Mac. Run the managed checks and the [Rhino test checklist](MAC-TESTING.md) before publishing a new Mac build.
 
 ## Distribution
 
-Use the `.gha` from the appropriate `bin/` folder for manual distribution or food4Rhino uploads. Label the Mac download **Rhino 7 for Mac — tested locally on Intel / Rhino 7.8**. Publishing to food4Rhino remains a manual step.
+Distribute the current Windows `.gha` from `bin/Release/` or the GitHub release assets. No Mac binary is currently distributed. Publishing to food4Rhino remains a manual step.
 
 ---
 
