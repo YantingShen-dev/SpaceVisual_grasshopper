@@ -9,9 +9,9 @@
     <UseWindowsForms>false</UseWindowsForms>
     <UseWpf>false</UseWpf>
 
-    <Version>0.1.0</Version>
-    <AssemblyVersion>0.1.0.0</AssemblyVersion>
-    <FileVersion>0.1.0.0</FileVersion>
+    <Version>0.2.0</Version>
+    <AssemblyVersion>0.2.0.0</AssemblyVersion>
+    <FileVersion>0.2.0.0</FileVersion>
     <Title>Space Visual</Title>
     <Authors>POLY LAB</Authors>
     <Company>POLY LAB</Company>
@@ -26,11 +26,23 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <Configurations>Debug;Release;Test</Configurations>
 
     <!-- Auto-copy SpaceVisual.gha to %APPDATA%\Grasshopper\Libraries on Debug build.
          Opt out with: dotnet build -p:AutoDeployToGrasshopper=false -->
     <AutoDeployToGrasshopper Condition="'$(AutoDeployToGrasshopper)' == ''">true</AutoDeployToGrasshopper>
     <GrasshopperLibrariesPath>$(APPDATA)\Grasshopper\Libraries\</GrasshopperLibrariesPath>
+  </PropertyGroup>
+
+  <!-- Local, side-by-side debug build. Never deploys over SpaceVisual.gha. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Test'">
+    <AssemblyName>SpaceVisual.Test</AssemblyName>
+    <Title>Space Visual test</Title>
+    <DefineConstants>$(DefineConstants);DEBUG;TRACE;SPACEVISUAL_TEST</DefineConstants>
+    <Optimize>false</Optimize>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>portable</DebugType>
+    <AutoDeployToGrasshopper>false</AutoDeployToGrasshopper>
   </PropertyGroup>
 
   <ItemGroup>

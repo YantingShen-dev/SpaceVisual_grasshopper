@@ -25,7 +25,7 @@ namespace SpaceVisual.Build
             subCategory: Constants.SubCategory.Build)
         { }
 
-        public override Guid ComponentGuid => new Guid("f3a8e5c2-7b41-4d09-bc52-1d6e8a3f4c70");
+        public override Guid ComponentGuid => PluginIdentity.For(new Guid("f3a8e5c2-7b41-4d09-bc52-1d6e8a3f4c70"));
 
         public override GH_Exposure Exposure => GH_Exposure.primary;
 
@@ -34,7 +34,8 @@ namespace SpaceVisual.Build
         protected override void RegisterInputParams(GH_InputParamManager pm)
         {
             pm.AddGeometryParameter("Region", "R",
-                "Region geometry: closed planar Curve, Surface, or single-face Brep.",
+                "Region geometry: closed planar Curve, Surface, or single-face Brep. " +
+                "This clips the sampling grid only. Also connect the boundary to Build Graph 2D's _Boundary input (or Isovist 2D's _Obstacles input) to block sightlines.",
                 GH_ParamAccess.item);
             int uIdx = pm.AddIntegerParameter("_U Count", "_U",
                 "Number of cells along the U direction (or along the curve bbox X-axis for Curve input).",

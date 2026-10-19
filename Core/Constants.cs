@@ -1,12 +1,17 @@
 namespace SpaceVisual.Core
 {
     /// <summary>
-    /// Plugin-wide constants. Three subcategories — the only intra-tab separator
-    /// the user wants is the 2D ↔ 3D boundary.
+    /// Plugin-wide category and subcategory names.
     /// </summary>
     internal static class Constants
     {
+#if SPACEVISUAL_TEST
+        public const string Category = "Space Visual test";
+        public const string ShortName = "SV test";
+#else
         public const string Category = "Space Visual";
+        public const string ShortName = "SV";
+#endif
 
         // Number prefix forces GH to render subcategories in this order.
         public static class SubCategory

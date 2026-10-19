@@ -18,13 +18,13 @@ namespace SpaceVisual.Analyze2D
             name: "Build Graph 2D",
             nickname: "Graph2D",
             description:
-                "Build a 2D visibility graph from analysis points and obstacle curves. " +
+                "Filter candidate points to the boundary and outside solid obstacles, then build a 2D visibility graph. " +
                 "Two points are connected if the segment between them is not blocked by any obstacle. " +
                 "Multithreaded (Parallel.For over N points × N pair-tests).",
             subCategory: Constants.SubCategory.Analyze2D)
         { }
 
-        public override Guid ComponentGuid => new Guid("d7e3a9b4-5f12-4c80-a6e9-2b8d4f7c1903");
+        public override Guid ComponentGuid => PluginIdentity.For(new Guid("d7e3a9b4-5f12-4c80-a6e9-2b8d4f7c1903"));
 
         public override GH_Exposure Exposure => GH_Exposure.primary;
 
@@ -33,12 +33,18 @@ namespace SpaceVisual.Analyze2D
         protected override void RegisterInputParams(GH_InputParamManager pm)
         {
             pm.AddPointParameter("Points", "P",
-                "Analysis points (viewpoints) projected to the WorldXY plane.",
+                "Candidate viewpoints. Points outside _Boundary or inside/on closed _Obstacles are removed before building the graph. All geometry must share an XY plane.",
                 GH_ParamAccess.list);
             int oIdx = pm.AddCurveParameter("_Obstacles", "_O",
-                "2D obstacle curves. Lines crossing any obstacle are treated as blocked. Leave empty for an all-visible graph.",
+                "Internal obstacles: closed curves exclude points inside/on them; open curves only block sightlines. " +
+                "Connect the outer boundary to _B, not here. Closed obstacles are solid even when nested.",
                 GH_ParamAccess.list);
             pm[oIdx].Optional = true;
+            int bIdx = pm.AddCurveParameter("_Boundary", "_B",
+                "Optional closed outer boundary curves. Keep points inside/on any boundary, and block sightlines crossing their outlines. " +
+                "Connect the same outer boundary used by View Grid here. With no boundary, the analysis extent is unrestricted.",
+                GH_ParamAccess.list);
+            pm[bIdx].Optional = true;
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pm)
@@ -49,23 +55,79 @@ namespace SpaceVisual.Analyze2D
             pm.AddLineParameter("Visible Lines", "L",
                 "Unique sight line segments (one per visible pair, i<j). Useful for visualisation.",
                 GH_ParamAccess.list);
+            pm.AddPointParameter("Filtered Points", "P", "Retained points in graph/VGA order. Preview these instead of the original grid points.", GH_ParamAccess.list);
+            pm.AddIntegerParameter("Kept Indices", "I", "Zero-based indices in the original Points list, in graph order. Use to select matching source data or grid faces before colorizing compact VGA values.", GH_ParamAccess.list);
+            pm.AddIntegerParameter("Removed Indices", "R", "Zero-based indices of rejected input points. Graph/VGA outputs do not include these points.", GH_ParamAccess.list);
         }
 
         protected override void SolveInstance(IGH_DataAccess da)
         {
             var pts = new List<Point3d>();
             var obstacles = new List<Curve>();
+            var boundaries = new List<Curve>();
 
             if (!da.GetDataList(0, pts) || pts.Count == 0)
             {
                 Fail("No points provided."); return;
             }
             da.GetDataList(1, obstacles);
+            da.GetDataList(2, boundaries);
+            const double tolerance = 1e-6;
+            double z = pts[0].Z;
+            var plane = new Plane(new Point3d(0, 0, z), Vector3d.ZAxis);
+            foreach (var p in pts)
+                if (!p.IsValid || Math.Abs(p.Z - z) > tolerance)
+                { Fail("All candidate points must be valid and lie in the same XY plane."); return; }
 
-            int n = pts.Count;
-            var ptArr = pts.ToArray();
+            var blocking = new List<Curve>(obstacles);
+            blocking.AddRange(boundaries);
+            foreach (var c in blocking)
+            {
+                if (c == null || !c.IsValid)
+                { Fail("Boundary and obstacle curves must be valid."); return; }
+                var box = c.GetBoundingBox(true);
+                if (!box.IsValid || Math.Abs(box.Min.Z - z) > tolerance || Math.Abs(box.Max.Z - z) > tolerance)
+                { Fail("All boundaries, obstacles and points must lie in the same XY plane."); return; }
+            }
+            foreach (var boundary in boundaries)
+                if (!boundary.IsClosed)
+                { Fail("_Boundary curves must be closed. Put open wall curves in _Obstacles."); return; }
 
-            var occluder = new CurveOccluder(obstacles);
+            var retained = new List<Point3d>();
+            var kept = new List<int>();
+            var removed = new List<int>();
+            for (int i = 0; i < pts.Count; i++)
+            {
+                bool allowed = boundaries.Count == 0;
+                foreach (var boundary in boundaries)
+                {
+                    var relation = boundary.Contains(pts[i], plane, tolerance);
+                    if (relation == PointContainment.Unset)
+                    { Fail("Could not classify points against _Boundary. Check closed planar curves."); return; }
+                    if (relation == PointContainment.Inside || relation == PointContainment.Coincident) allowed = true;
+                }
+                if (allowed)
+                    foreach (var obstacle in obstacles)
+                    {
+                        if (!obstacle.IsClosed) continue;
+                        var relation = obstacle.Contains(pts[i], plane, tolerance);
+                        if (relation == PointContainment.Unset)
+                        { Fail("Could not classify points against a closed obstacle. Check its geometry."); return; }
+                        if (relation == PointContainment.Inside || relation == PointContainment.Coincident)
+                        { allowed = false; break; }
+                    }
+                if (allowed) { retained.Add(pts[i]); kept.Add(i); }
+                else removed.Add(i);
+            }
+            if (blocking.Count == 0)
+                Warn("No boundary or obstacles: every pair of points is visible.");
+            if (retained.Count == 0)
+                Warn("All points were excluded. Outer boundaries belong in _B; closed curves in _O are solid obstacles.");
+
+            int n = retained.Count;
+            var ptArr = retained.ToArray();
+
+            using var occluder = new CurveOccluder(blocking);
 
             // Each pair (i,j) with j>i is independent. Parallelise the outer i loop
             // and collect visible pairs in a thread-safe bag; we'll fold them into
@@ -105,10 +167,13 @@ namespace SpaceVisual.Analyze2D
             var lines = graph.GetVisibleLines();
 
             int edges = totalDegree / 2;
-            Remark($"Built graph: {n} points, {edges} edges, avg degree {(double)totalDegree / n:F1}.");
+            Remark($"Built graph: {n}/{pts.Count} points retained, {removed.Count} removed, {edges} edges, avg degree {(n == 0 ? 0 : (double)totalDegree / n):F1}.");
 
             da.SetData(0, new GH_VisibilityGraph(graph));
             da.SetDataList(1, lines);
+            da.SetDataList(2, ptArr);
+            da.SetDataList(3, kept);
+            da.SetDataList(4, removed);
         }
     }
 }

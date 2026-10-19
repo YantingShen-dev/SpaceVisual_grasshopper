@@ -12,7 +12,11 @@ namespace SpaceVisual.Core.Base
     public abstract class SVComponent : GH_Component
     {
         protected SVComponent(string name, string nickname, string description, string subCategory)
+#if SPACEVISUAL_TEST
+            : base(name + " [test]", nickname, "LOCAL TEST BUILD\n" + description, Constants.Category, subCategory)
+#else
             : base(name, nickname, description, Constants.Category, subCategory)
+#endif
         {
         }
 

@@ -17,7 +17,7 @@ namespace SpaceVisual.Core.Params
             Constants.Category, "Params")
         { }
 
-        public override Guid ComponentGuid => new Guid("c2e6d7b1-9a4f-4e1b-bd35-7e0f9c2a8d51");
+        public override Guid ComponentGuid => PluginIdentity.For(new Guid("c2e6d7b1-9a4f-4e1b-bd35-7e0f9c2a8d51"));
 
         public override GH_Exposure Exposure => GH_Exposure.hidden;
 

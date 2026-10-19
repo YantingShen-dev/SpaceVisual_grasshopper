@@ -1,0 +1,96 @@
+#! python 2
+# -*- coding: utf-8 -*-
+"""Exercise the newly built candidate in a temporary document; preserve open GH files."""
+import os, json, traceback
+import clr, System, Rhino
+clr.AddReference('Grasshopper')
+import Grasshopper
+from Grasshopper.Kernel import GH_Document, GH_RuntimeMessageLevel
+from Grasshopper.Kernel.Types import GH_Point, GH_Curve
+from Rhino.Geometry import Point3d, PolylineCurve, LineCurve, Circle, Plane
+root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+report={'passed':False,'checks':[]}
+def check(ok,name):
+    if not ok: raise Exception(name)
+    report['checks'].append(name)
+def poly(coords):
+    return PolylineCurve(System.Array[Point3d]([Point3d(x,y,0) for x,y in coords]))
+def run():
+    docs=[]
+    try:
+        candidate_path=globals().get('SPACEVISUAL_CANDIDATE_PATH',os.path.join(root,'bin','Test','SpaceVisual.Test.gha'))
+        a=System.Reflection.Assembly.Load(System.IO.File.ReadAllBytes(candidate_path))
+        report['candidate_path']=candidate_path
+        report['candidate_mvid']=str(a.ManifestModule.ModuleVersionId)
+        def make(points,obstacles,boundaries,fail=False):
+            d=GH_Document();d.Enabled=True;docs.append(d)
+            node=System.Activator.CreateInstance(a.GetType('SpaceVisual.Analyze2D.SV_BuildGraph2D'))
+            node.CreateAttributes();d.AddObject(node,False)
+            for p in points:node.Params.Input[0].PersistentData.Append(GH_Point(Point3d(*p)))
+            for c in obstacles:node.Params.Input[1].PersistentData.Append(GH_Curve(c))
+            for c in boundaries:node.Params.Input[2].PersistentData.Append(GH_Curve(c))
+            d.NewSolution(True)
+            errors=list(node.RuntimeMessages(GH_RuntimeMessageLevel.Error))
+            if fail:
+                check(bool(errors),'Invalid geometry produces an explicit error');return d,node,None,None
+            if errors:raise Exception(str(errors))
+            g=list(node.Params.Output[0].VolatileData.AllData(True))[0].Value
+            kept=[v.Value for v in node.Params.Output[3].VolatileData.AllData(True)]
+            removed=[v.Value for v in node.Params.Output[4].VolatileData.AllData(True)]
+            check(sorted(kept+removed)==list(range(len(points))),'Kept/removed indices partition all input points')
+            check(len(kept)==g.Count==node.Params.Output[2].VolatileDataCount,'Graph and filtered-point output agree')
+            check(all(g.Points[i].DistanceTo(Point3d(*points[j]))<1e-9 for i,j in enumerate(kept)),'Filtered points preserve source order')
+            return d,node,g,kept
+        square=poly([(0,0),(10,0),(10,10),(0,10),(0,0)])
+        hole=poly([(4,4),(6,4),(6,6),(4,6),(4,4)])
+        points=[(1,5,0),(5,5,0),(9,5,0),(4,5,0),(12,5,0),(5,1,0)]
+        d,node,g,kept=make(points,[hole],[square])
+        check(kept==[0,2,5],'Closed obstacle interior and outline are removed; outside boundary is removed')
+        check(list(g.Adjacency[0])==[2] and list(g.Adjacency[1])==[2],'Remaining visibility respects the solid obstacle')
+        metrics=System.Activator.CreateInstance(a.GetType('SpaceVisual.Analyze2D.SV_VGAMetrics2D'))
+        metrics.CreateAttributes();d.AddObject(metrics,False);metrics.Params.Input[0].AddSource(node.Params.Output[0]);d.NewSolution(True)
+        check([v.Value for v in metrics.Params.Output[4].VolatileData.AllData(True)]==[1,1,2],'VGA connectivity uses compact filtered-point order')
+        _,_,g,k=make([(0,5,0),(1,5,0)],[],[square]);check(k==[0,1],'Outer boundary contact is allowed')
+        _,_,g,k=make(points,[hole],[]);check(k==[0,2,4,5],'Without _B, only solid obstacles restrict points')
+        wall=LineCurve(Point3d(5,0,0),Point3d(5,10,0))
+        _,_,g,k=make([(2,5,0),(8,5,0)],[wall],[square]);check(k==[0,1] and len(g.Adjacency[0])==0,'Open wall blocks lines without removing either point')
+        _,_,g,k=make([(1,1,0),(2,2,0)],[],[]);check(g.Count==2 and len(g.Adjacency[0])==1,'No geometry keeps the all-visible graph')
+        _,_,g,k=make([(5,5,0),(4,5,0)],[hole],[square]);check(g.Count==0,'All excluded points produce an empty graph without division by zero')
+        _,_,g,k=make([(1,1,0)],[],[square]);check(g.Count==1 and len(g.Adjacency[0])==0,'Single retained point remains a valid graph')
+        circle=Circle(Plane(Point3d(5,5,0),Rhino.Geometry.Vector3d.ZAxis),1).ToNurbsCurve()
+        _,_,g,k=make([(5,5,0),(6,5,0),(7,5,0)],[circle],[square]);check(k==[2],'Curved closed obstacles remove interior and boundary points')
+        nested=poly([(4.5,4.5),(5.5,4.5),(5.5,5.5),(4.5,5.5),(4.5,4.5)])
+        _,_,g,k=make([(5,5,0),(1,1,0)],[hole,nested],[square]);check(k==[1],'Nested obstacles remain solid, not accidental free-space islands')
+        second=poly([(20,0),(30,0),(30,10),(20,10),(20,0)])
+        _,_,g,k=make([(1,1,0),(21,1,0),(15,1,0)],[],[square,second]);check(k==[0,1] and len(g.Adjacency[0])==0,'Multiple boundaries allow their union but block inter-region sightlines')
+        make([(1,1,0)],[],[wall],True)
+        make([(1,1,1)],[hole],[],True)
+        # Recompute the original node to ensure excluded data does not leave stale output.
+        node.Params.Input[0].PersistentData.Clear()
+        node.Params.Input[0].PersistentData.Append(GH_Point(Point3d(5,5,0)))
+        node.ExpireSolution(False);d.NewSolution(True)
+        check(node.Params.Output[1].VolatileDataCount==0 and node.Params.Output[2].VolatileDataCount==0,'Recompute clears old points and sightlines when all points become excluded')
+        # Optional user case: independently classify the captured polygons, then
+        # select the previously independently verified finite-segment edges.
+        actual_path=os.path.join(root,'bin','Test','actual-case-verified.json')
+        if os.path.exists(actual_path):
+            source=json.load(open(actual_path));raw=source['points'];bounds=source['boundaries']
+            def inside(p,polygon):
+                hit=False
+                for c,e in zip(polygon[:-1],polygon[1:]):
+                    if (c[1]>p[1])!=(e[1]>p[1]) and p[0]<(e[0]-c[0])*(p[1]-c[1])/(e[1]-c[1])+c[0]:hit=not hit
+                return hit
+            expected_kept=[i for i,p in enumerate(raw) if inside(p,bounds[1]) and not inside(p,bounds[0])]
+            _,_,g,k=make(raw,[poly([(p[0],p[1]) for p in bounds[0]])],[poly([(p[0],p[1]) for p in bounds[1]])])
+            check(k==expected_kept,'User case: point filtering agrees with independent polygon containment')
+            mapping={old:new for new,old in enumerate(k)}
+            expected=set((mapping[i],mapping[j]) for i,j in source['edges'] if i in mapping and j in mapping)
+            actual=set((i,j) for i,row in enumerate(g.Adjacency) for j in row if j>i)
+            check(actual==expected,'User case: all remaining edges match the independent finite-segment reference')
+            report['user_case']={'input_points':len(raw),'retained_points':len(k),'removed_points':len(raw)-len(k),'edges':len(actual),'crossing_edges':len(actual-expected),'missing_edges':len(expected-actual),'kept_indices':k}
+        report['passed']=True
+    except:report['error']=traceback.format_exc()
+    finally:
+        for d in docs:d.Dispose()
+        with open(os.path.join(root,'bin','Test',globals().get('SPACEVISUAL_REPORT_NAME','graph-point-filter-regression.json')),'w') as f:json.dump(report,f,indent=2)
+Rhino.RhinoApp.InvokeOnUiThread(System.Action(run))

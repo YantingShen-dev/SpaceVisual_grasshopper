@@ -43,8 +43,8 @@
 
 | 平台 | 下载 | 兼容说明 |
 | --- | --- | --- |
-| Windows | [SpaceVisual.gha](bin/Debug/SpaceVisual.gha) | 原 Windows Debug 构建，目标支持 Rhino 7（SR0+）与 Rhino 8 |
-| Mac | [SpaceVisual.gha](bin/Mac/Release/SpaceVisual.gha) | 独立的 Rhino 7 构建，作者已确认 Intel Mac / Rhino 7.8 本地可用 |
+| Windows 0.2.0 | [SpaceVisual.gha](bin/Release/SpaceVisual.gha) · [发布下载](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.0) | 正式 Release 构建，目标支持 Rhino 7（SR0+）与 Rhino 8；已在 Rhino 8 验证 |
+| Mac 0.1.0（旧版） | [SpaceVisual.gha](bin/Mac/Release/SpaceVisual.gha) | 原独立构建，已确认 Intel Mac / Rhino 7.8 可用；**尚不含 0.2.0 修复** |
 
 Mac 的 Rhino 8、Apple Silicon 与 Rhino 7.0–7.7 尚未验证。两个下载文件名称相同，请按平台选择；只需下载 `.gha`。
 
@@ -58,17 +58,23 @@ Windows 常用目录为 `%APPDATA%\Grasshopper\Libraries\`。Mac 请以 Grasshop
 
 Libraries 中只保留一份 Space Visual；旧版请移到目录外备份。Windows 与 Mac 版本共用组件 GUID，同时安装会产生重复组件。
 
+本次 Windows 正式版为 **0.2.0**，升级步骤见 [更新记录](CHANGELOG.md)。同时检查 Rhino PackageManager 中是否另有旧版。临时测试版定义需要换成正式组件，再移除 **Space Visual test** 插件；两个版本的自定义 Graph、Parameter 类型不能混接。为兼容原下载链接，`bin/Debug/SpaceVisual.gha` 同步为相同的 0.2.0 正式二进制。
+
 ## 快速开始
 
 ### 做一张二维可视性热力图
 
 1. 准备闭合的平面边界曲线，以及同平面内的遮挡曲线。
 2. 将边界接入 **View Grid**，获得分析网格 `M` 和每个网格面的中心点 `P`。
-3. 将 `P` 接到 **Build Graph 2D → Points**，遮挡曲线接到 `_Obstacles`。
+3. 将网格 `P` 接到 **Build Graph 2D → Points**，**外边界**接 `_Boundary`（`_B`），**内部障碍物**接 `_Obstacles`（`_O`）。建图前会剔除闭合障碍物内部及轮廓上的点，以及所有外边界之外的点；开放墙线只遮挡视线。View Grid 的点输出不会携带边界曲线。
 4. 将输出的 `Graph` 接入 **VGA Metrics 2D**。可以先看 `Connectivity`，即直接可见的相邻节点数量。
-5. 将原分析网格接到 **Colorize → Mesh**，指标接到 `Values 0`。可选接入 **Parameter** 调整颜色与图例。
+5. 按 Graph2D 的 **Kept Indices**（`I`）保留原网格对应的面，维持索引顺序，再将筛选后的网格接到 **Colorize → Mesh**，精简后的指标接到 `Values 0`。可选接入 **Parameter** 调整颜色与图例。没有点被剔除时，可以直接使用原网格。
 
-保持点与结果的顺序一致，使每个数值对应正确的网格面。如果场地包含实体障碍物，应在建图前排除障碍内部的采样点，并同步处理用于着色的网格。
+可用原生组件完成网格筛选：**Deconstruct Mesh** 的 Faces 接 **List Item**，Graph2D 的 `I` 接索引；筛选后的 Faces 与原 Vertices 接 **Construct Mesh**，再接 **Colorize**。
+
+Graph2D 的 **Filtered Points**（`P`）、图节点和 VGA 数值使用相同的过滤后顺序；**Removed Indices**（`R`）输出被剔除点的原始索引。关闭原网格/点的预览，改看过滤后点输出，才能不显示被剔除的输入点；下游组件不会关闭上游预览。上述面索引对应关系适用于每面输出一个中心点的 **View Grid**。**View Grid Triangle** 在曲线输入时使用顶点采样，网格/曲面/Brep 输入时使用面中心点；处理显示网格时应匹配对应关系。采样点过滤不等于沿障碍物轮廓精确裁剪网格。
+
+旧文件若将内外边界都接在 `_O`，应将外边界移到 `_B`。现在闭合 `_O` 曲线均表示实体排除区，嵌套障碍物也不会自动成为空洞。所有点与曲线应处于同一个 XY 平面。如果旧定义中的组件没有 `_B` 输入，请放置新版 Build Graph 2D 并重新接线。
 
 ### 换一个分析问题
 

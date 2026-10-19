@@ -21,7 +21,7 @@ namespace SpaceVisual.Analyze2D
             subCategory: Constants.SubCategory.Analyze2D)
         { }
 
-        public override Guid ComponentGuid => new Guid("e8b4a2c9-1f53-4d76-9a02-3c5e7b8f1d62");
+        public override Guid ComponentGuid => PluginIdentity.For(new Guid("e8b4a2c9-1f53-4d76-9a02-3c5e7b8f1d62"));
 
         public override GH_Exposure Exposure => GH_Exposure.primary;
 
@@ -30,7 +30,7 @@ namespace SpaceVisual.Analyze2D
         protected override void RegisterInputParams(GH_InputParamManager pm)
         {
             pm.AddPointParameter("Points", "P", "Viewpoints.", GH_ParamAccess.list);
-            int oIdx = pm.AddCurveParameter("_Obstacles", "_O", "2D obstacle curves.", GH_ParamAccess.list);
+            int oIdx = pm.AddCurveParameter("_Obstacles", "_O", "Blocking curves in the viewpoints' XY plane, including the outer boundary and internal walls.", GH_ParamAccess.list);
             pm[oIdx].Optional = true;
             int rIdx = pm.AddNumberParameter("_Radius", "_R",
                 "Maximum sight distance. Rays that don't hit an obstacle within this distance terminate here.",
@@ -73,7 +73,7 @@ namespace SpaceVisual.Analyze2D
             if (radius <= 0) { Fail("Radius must be positive."); return; }
             if (count < 8) { Fail("Count must be >= 8."); return; }
 
-            var occluder = new CurveOccluder(obstacles);
+            using var occluder = new CurveOccluder(obstacles);
             int n = pts.Count;
             var ptArr = pts.ToArray();
 

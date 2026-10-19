@@ -17,7 +17,7 @@ namespace SpaceVisual
                 Grasshopper.Instances.ComponentServer.AddCategoryIcon(Constants.Category, icon);
 
             Grasshopper.Instances.ComponentServer.AddCategorySymbolName(Constants.Category, 'S');
-            Grasshopper.Instances.ComponentServer.AddCategoryShortName(Constants.Category, "SV");
+            Grasshopper.Instances.ComponentServer.AddCategoryShortName(Constants.Category, Constants.ShortName);
 
             return GH_LoadingInstruction.Proceed;
         }

@@ -1,0 +1,101 @@
+#! python 2
+# -*- coding: utf-8 -*-
+"""Build and verify a concave-boundary GH example in the selected Rhino host."""
+import os, json, traceback, datetime
+import clr, System, Rhino
+clr.AddReference('Grasshopper')
+import Grasshopper
+from Grasshopper.Kernel import GH_Document, GH_DocumentIO, GH_RuntimeMessageLevel
+from Grasshopper.Kernel.Parameters import Param_Curve
+from Grasshopper.Kernel.Types import GH_Curve
+from Rhino.Geometry import Point3d, PolylineCurve
+from System.Drawing import PointF
+
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+output_dir = os.path.join(root, 'bin', 'Test')
+report = {'passed': False, 'checks': []}
+
+def check(condition, label):
+    if not condition: raise Exception(label)
+    report['checks'].append(label)
+
+def run():
+    try:
+        assembly = next(a for a in System.AppDomain.CurrentDomain.GetAssemblies() if a.GetName().Name == 'SpaceVisual.Test')
+        report['mvid'] = str(assembly.ManifestModule.ModuleVersionId)
+        server = Grasshopper.Instances.ComponentServer
+        doc = GH_Document()
+        doc.Enabled = True
+        coords = [(0,0),(10,0),(10,4),(4,4),(4,10),(0,10),(0,0)]
+        boundary = PolylineCurve(System.Array[Point3d]([Point3d(x,y,0) for x,y in coords]))
+        region = Param_Curve()
+        region.Name = 'Outer boundary: connect to BOTH Region and _Boundary'
+        region.NickName = 'Outer boundary'
+        region.PersistentData.Append(GH_Curve(boundary))
+        region.CreateAttributes()
+        region.Attributes.Pivot = PointF(80,160)
+        doc.AddObject(region, False)
+        def component(type_name, x, y):
+            prototype = System.Activator.CreateInstance(next(t for t in assembly.GetTypes() if t.Name == type_name))
+            node = server.EmitObject(prototype.ComponentGuid)
+            node.CreateAttributes()
+            node.Attributes.Pivot = PointF(x,y)
+            doc.AddObject(node, False)
+            return node
+        grid = component('SV_ViewGrid', 290,100)
+        graph = component('SV_BuildGraph2D', 520,100)
+        metrics = component('SV_VGAMetrics2D', 750,100)
+        color = component('SV_Colorize', 1010,100)
+        grid.Params.Input[0].AddSource(region)
+        graph.Params.Input[0].AddSource(grid.Params.Output[1])
+        graph.Params.Input[2].AddSource(region)
+        metrics.Params.Input[0].AddSource(graph.Params.Output[0])
+        color.Params.Input[0].AddSource(grid.Params.Output[0])
+        color.Params.Input[2].AddSource(metrics.Params.Output[4])
+        grid.Hidden = True
+        graph.Hidden = True  # Enable its preview to inspect the valid sightlines.
+        for attempt in range(3):
+            doc.NewSolution(True)
+            graph_data = list(graph.Params.Output[0].VolatileData.AllData(True))[0].Value
+            points = list(graph_data.Points)
+            check(len(points) == 64, 'Concave grid contains 64 points (run %d)' % (attempt+1))
+            edges = set((i,j) for i,row in enumerate(graph_data.Adjacency) for j in row if j > i)
+            # Independent analytic oracle for the two re-entrant L-shaped walls.
+            def blocked(a,b):
+                dx,dy = b.X-a.X,b.Y-a.Y
+                if abs(dx) > 1e-12:
+                    t=(4.0-a.X)/dx
+                    if 0 < t < 1 and a.Y+t*dy >= 4.0-1e-9: return True
+                if abs(dy) > 1e-12:
+                    t=(4.0-a.Y)/dy
+                    if 0 < t < 1 and a.X+t*dx >= 4.0-1e-9: return True
+                return False
+            expected = set((i,j) for i in range(len(points)) for j in range(i+1,len(points)) if not blocked(points[i],points[j]))
+            check(edges == expected, 'Every graph edge matches the analytic concave-wall oracle (run %d)' % (attempt+1))
+        check(all(not n.RuntimeMessages(GH_RuntimeMessageLevel.Error) for n in [grid,graph,metrics,color]), 'Full graph/VGA/Colorize chain has no errors')
+        connectivity = [v.Value for v in metrics.Params.Output[4].VolatileData.AllData(True)]
+        check(connectivity == [len(row) for row in graph_data.Adjacency], 'VGA connectivity matches the corrected graph')
+        report['point_count'] = len(points)
+        report['edge_count'] = len(edges)
+        report['all_pairs'] = len(points)*(len(points)-1)//2
+        report['outline'] = coords
+        report['points'] = [[p.X,p.Y] for p in points]
+        report['edges'] = sorted(edges)
+        report['connectivity'] = connectivity
+        path = os.path.join(output_dir, 'Concave-Boundary-Test-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.gh')
+        io = GH_DocumentIO()
+        io.Document = doc
+        check(io.SaveQuiet(path), 'Concave GH example saved')
+        report['sample'] = path
+        Grasshopper.Instances.DocumentServer.AddDocument(doc)
+        if Grasshopper.Instances.ActiveCanvas is not None:
+            Grasshopper.Instances.ActiveCanvas.Document = doc
+        report['passed'] = True
+        Rhino.RhinoDoc.ActiveDoc.Views.Redraw()
+    except:
+        report['error'] = traceback.format_exc()
+    finally:
+        with open(os.path.join(output_dir, 'concave-verification.json'), 'w') as stream:
+            json.dump(report, stream, indent=2)
+
+Rhino.RhinoApp.InvokeOnUiThread(System.Action(run))

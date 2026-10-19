@@ -1,0 +1,16 @@
+#! python 2
+# -*- coding: utf-8 -*-
+"""Build Release first, then run this script in an existing Rhino host.
+
+Tests use isolated byte-loaded production components in temporary GH documents;
+they never register a second production assembly or change the active canvas.
+Reports are written under bin/Test, separately from test-build reports.
+"""
+import os
+root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+output=os.path.join(root,'bin','Test')
+if not os.path.isdir(output):os.makedirs(output)
+candidate=os.path.join(root,'bin','Release','SpaceVisual.gha')
+for name,report in [('graph-point-filter-regression.py2','production-graph-regression.json'),('visibility-2d-regression.py2','production-visibility-regression.json')]:
+    path=os.path.join(root,'tests',name)
+    execfile(path,{'__file__':path,'SPACEVISUAL_CANDIDATE_PATH':candidate,'SPACEVISUAL_REPORT_NAME':report})

@@ -21,7 +21,7 @@ namespace SpaceVisual.Build
             subCategory: Constants.SubCategory.Build)
         { }
 
-        public override Guid ComponentGuid => new Guid("b1a8c3d5-2e74-4a09-b5c1-8f3a6d1e2c47");
+        public override Guid ComponentGuid => PluginIdentity.For(new Guid("b1a8c3d5-2e74-4a09-b5c1-8f3a6d1e2c47"));
 
         public override GH_Exposure Exposure => GH_Exposure.primary;
 
@@ -30,7 +30,8 @@ namespace SpaceVisual.Build
         protected override void RegisterInputParams(GH_InputParamManager pm)
         {
             pm.AddGeometryParameter("Region", "R",
-                "Region geometry: closed Curve, Surface, Brep, or Mesh.",
+                "Region geometry: closed Curve, Surface, Brep, or Mesh. " +
+                "This defines the sampling grid only. Also connect boundaries to Build Graph 2D's _Boundary input (or Isovist 2D's _Obstacles input) to block sightlines.",
                 GH_ParamAccess.item);
             int sIdx = pm.AddNumberParameter("_Spacing", "_S",
                 "Cell size. For Curve regions: grid step. For Surface/Brep: drives auto-meshing edge length. " +

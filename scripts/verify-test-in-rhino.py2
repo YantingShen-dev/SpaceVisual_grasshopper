@@ -1,0 +1,126 @@
+#! python 2
+# -*- coding: utf-8 -*-
+"""Run inside the chosen Rhino 8 session; never edits an existing GH document."""
+import os
+import json
+import traceback
+import datetime
+import clr
+import System
+import Rhino
+clr.AddReference('Grasshopper')
+import Grasshopper
+from Grasshopper.Kernel import GH_ExternalFile, GH_ComponentServer, GH_Component, IGH_DocumentObject, GH_Document, GH_DocumentIO
+from Grasshopper.Kernel.Types import GH_Curve
+from System.Reflection import BindingFlags
+from System.Drawing import PointF
+
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+output_dir = os.path.join(root, 'bin', 'Test')
+report_path = os.path.join(output_dir, 'rhino-verification.json')
+plugin_path = os.path.join(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData), 'Grasshopper', 'Libraries', 'SpaceVisual.Test.gha')
+test_id = System.Guid('b5c4b3b4-e416-5e3e-88ef-fef1b114cd63')
+production_id = System.Guid('a3f5c2d1-7b48-4e91-9c3a-5d2e8f1a6b7c')
+report = {'passed': False, 'rhino': str(Rhino.RhinoApp.Version), 'checks': []}
+
+def check(condition, label):
+    if not condition:
+        raise Exception(label)
+    report['checks'].append(label)
+
+def run():
+    server = Grasshopper.Instances.ComponentServer
+    original_docs = list(Grasshopper.Instances.DocumentServer)
+    if not any(lib.Id == test_id for lib in server.Libraries):
+        # Rhino 8.12 exposes the initial-load method internally. Use it only for
+        # an assembly that is not already registered; rebuilds require restart.
+        flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
+        methods = [m for m in server.GetType().GetMethods(flags) if m.Name == 'LoadExternalFile' and len(m.GetParameters()) == 2]
+        check(len(methods) == 1, 'Initial-load API located')
+        loaded = methods[0].Invoke(server, System.Array[System.Object]([GH_ExternalFile(plugin_path), False]))
+        check(bool(loaded), 'Initial test plugin load succeeded')
+        GH_ComponentServer.UpdateRibbonUI()
+    check(any(lib.Id == production_id for lib in server.Libraries), 'Production library remains registered')
+    check(any(lib.Id == test_id and lib.Name == 'Space Visual test' for lib in server.Libraries), 'Separate test library registered')
+
+    assemblies = list(System.AppDomain.CurrentDomain.GetAssemblies())
+    test_assembly = next(a for a in assemblies if a.GetName().Name == 'SpaceVisual.Test')
+    production = next(a for a in assemblies if a.GetName().Name == 'SpaceVisual')
+    check(len([n for n in test_assembly.GetManifestResourceNames() if n.endswith('.png')]) == 12, 'All 12 embedded icons present')
+    component_type = clr.GetClrType(GH_Component)
+    docobject_type = clr.GetClrType(IGH_DocumentObject)
+    test_objects = [System.Activator.CreateInstance(t) for t in test_assembly.GetTypes() if not t.IsAbstract and docobject_type.IsAssignableFrom(t)]
+    production_objects = [System.Activator.CreateInstance(t) for t in production.GetTypes() if not t.IsAbstract and docobject_type.IsAssignableFrom(t)]
+    components = [o for o in test_objects if component_type.IsAssignableFrom(o.GetType())]
+    test_ids = set(str(o.ComponentGuid) for o in test_objects)
+    production_ids = set(str(o.ComponentGuid) for o in production_objects)
+    check(len(components) == 11 and len(test_objects) == 13, '11 test components and 2 custom parameters instantiate')
+    check(len(test_ids) == 13 and not test_ids.intersection(production_ids), 'All component/parameter IDs are unique and separate from production')
+    check(all(o.Category == 'Space Visual test' for o in test_objects), 'All test objects use the separate category')
+    check(all(server.EmitObjectProxy(o.ComponentGuid) is not None for o in test_objects), 'All test objects registered with Grasshopper')
+    check(all(o.Name.endswith('[test]') for o in components), 'Test components visibly labelled')
+    check(all(o.Icon_24x24 is not None for o in components), 'All test component icons render')
+    report['components'] = [{'name': o.Name, 'id': str(o.ComponentGuid)} for o in components]
+    report['assembly_mvid'] = str(test_assembly.ManifestModule.ModuleVersionId)
+
+    # Solve an isolated document with a simple 10 x 10 grid. No Rhino model edits.
+    doc = GH_Document()
+    doc.Enabled = True
+    nodes = {}
+    for i, type_name in enumerate(['SV_ViewGrid', 'SV_BuildGraph2D', 'SV_VGAMetrics2D', 'SV_Colorize']):
+        prototype = next(o for o in components if o.GetType().Name == type_name)
+        node = server.EmitObject(prototype.ComponentGuid)
+        node.CreateAttributes()
+        node.Attributes.Pivot = PointF(70 + i * 250, 100)
+        doc.AddObject(node, False)
+        nodes[type_name] = node
+    grid = nodes['SV_ViewGrid']
+    graph = nodes['SV_BuildGraph2D']
+    metrics = nodes['SV_VGAMetrics2D']
+    color = nodes['SV_Colorize']
+    region = Rhino.Geometry.Rectangle3d(Rhino.Geometry.Plane.WorldXY, 10.0, 10.0).ToNurbsCurve()
+    grid.Params.Input[0].PersistentData.Append(GH_Curve(region))
+    graph.Params.Input[0].AddSource(grid.Params.Output[1])
+    metrics.Params.Input[0].AddSource(graph.Params.Output[0])
+    color.Params.Input[0].AddSource(grid.Params.Output[0])
+    color.Params.Input[2].AddSource(metrics.Params.Output[4])
+    doc.NewSolution(True)
+    values = list(metrics.Params.Output[4].VolatileData.AllData(True))
+    point_count = grid.Params.Output[1].VolatileDataCount
+    report['solution'] = {
+        'point_count': point_count,
+        'value_count': len(values),
+        'enabled': GH_Document.EnableSolutions,
+        'messages': {name: [str(message) for level in [Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning] for message in node.RuntimeMessages(level)] for name, node in nodes.items()}
+    }
+    check(point_count == 100 and len(values) == 100, 'Native grid/graph/VGA chain solves for 100 points')
+    check(all(abs(v.Value - 99.0) < 1e-8 for v in values), 'Unobstructed grid connectivity equals 99 at every node')
+    check(all(not node.RuntimeMessages(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error) for node in nodes.values()), 'No runtime errors in grid/graph/VGA/Colorize chain')
+
+    sample_path = os.path.join(output_dir, 'SpaceVisual-Test-Smoke-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.gh')
+    io = GH_DocumentIO()
+    io.Document = doc
+    check(io.SaveQuiet(sample_path), 'Test definition saved')
+    roundtrip = GH_DocumentIO()
+    check(roundtrip.Open(sample_path), 'Test definition reopens')
+    check(set(str(o.ComponentGuid) for o in roundtrip.Document.Objects) == set(str(o.ComponentGuid) for o in nodes.values()), 'Saved test component GUIDs survive reopening')
+    roundtrip.Document.Dispose()
+    Grasshopper.Instances.DocumentServer.AddDocument(doc)
+    if Grasshopper.Instances.ActiveCanvas is not None:
+        Grasshopper.Instances.ActiveCanvas.Document = doc
+    check(all(d in list(Grasshopper.Instances.DocumentServer) for d in original_docs), 'Previously open GH documents retained')
+    report['sample'] = sample_path
+    report['passed'] = True
+
+def run_checked():
+    # InvokeOnUiThread may dispatch asynchronously; write the result inside the
+    # callback so a completed report always reflects the actual host checks.
+    try:
+        run()
+    except:
+        report['error'] = traceback.format_exc()
+    finally:
+        with open(report_path, 'w') as output:
+            json.dump(report, output, indent=2)
+
+Rhino.RhinoApp.InvokeOnUiThread(System.Action(run_checked))

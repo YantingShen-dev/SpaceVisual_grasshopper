@@ -49,7 +49,7 @@ namespace SpaceVisual.Visualize
             subCategory: Constants.SubCategory.Visualize)
         { }
 
-        public override Guid ComponentGuid => new Guid("a1d4f3c5-9b62-4e07-bd58-3a8c2f1d6e74");
+        public override Guid ComponentGuid => PluginIdentity.For(new Guid("a1d4f3c5-9b62-4e07-bd58-3a8c2f1d6e74"));
 
         public override GH_Exposure Exposure => GH_Exposure.primary;
 

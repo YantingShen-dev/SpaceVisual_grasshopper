@@ -1,0 +1,115 @@
+#! python 2
+# -*- coding: utf-8 -*-
+"""Create a self-contained boundary-vs-solid comparison using the current test build.
+
+If an older plugin is loaded, use an unregistered candidate in a temporary document
+and save the definition for the next Rhino session. Never replace an open model.
+"""
+import os,json,traceback,datetime
+import clr,System,Rhino
+clr.AddReference('Grasshopper')
+import Grasshopper
+from Grasshopper.Kernel import GH_Document,GH_DocumentIO,GH_RuntimeMessageLevel
+from Grasshopper.Kernel.Parameters import Param_Curve,Param_Point
+from Grasshopper.Kernel.Special import GH_Panel
+from Grasshopper.Kernel.Types import GH_Point,GH_Curve
+from Rhino.Geometry import Point3d,PolylineCurve,LineCurve,Plane
+from System.Drawing import PointF,RectangleF,Color,Font
+root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+out=os.path.join(root,'bin','Test');report={'passed':False}
+def run():
+    doc=None
+    try:
+        candidate=System.Reflection.Assembly.Load(System.IO.File.ReadAllBytes(os.path.join(out,'SpaceVisual.Test.gha')))
+        loaded=next((a for a in System.AppDomain.CurrentDomain.GetAssemblies() if a.GetName().Name=='SpaceVisual.Test' and a.Location),None)
+        current=loaded is not None and loaded.ManifestModule.ModuleVersionId==candidate.ManifestModule.ModuleVersionId
+        assembly=loaded if current else candidate
+        report['registered_build_current']=current;report['mvid']=str(assembly.ManifestModule.ModuleVersionId)
+        sourcepath=os.path.join(out,'actual-case-verified.json')
+        if os.path.exists(sourcepath):
+            source=json.load(open(sourcepath));raw=source['points'];bounds=source['boundaries']
+        else:
+            bounds=[[[2,2,0],[4,2,0],[4,4,0],[2,4,0],[2,2,0]],[[0,0,0],[12,0,0],[12,6,0],[6,6,0],[6,12,0],[0,12,0],[0,0,0]]]
+            raw=[[x+0.5,y+0.5,0] for x in range(12) for y in range(12) if x<6 or y<6]
+        minx=min(p[0] for p in bounds[1]);miny=min(p[1] for p in bounds[1]);width=max(p[0] for p in bounds[1])-minx;height=max(p[1] for p in bounds[1])-miny
+        gap=width*0.35;doc=GH_Document();doc.Enabled=True
+        model=Rhino.FileIO.File3dm();model.Settings.ModelUnitSystem=Rhino.UnitSystem.Meters
+        def add(obj,x,y,hidden=True):
+            obj.CreateAttributes();obj.Attributes.Pivot=PointF(x,y)
+            if hasattr(obj,'Hidden'):obj.Hidden=hidden
+            doc.AddObject(obj,False);return obj
+        def panel(text,x,y,w,h):
+            p=add(GH_Panel(),x,y);p.UserText=text;p.Properties.Font=Font('Segoe UI',12);p.Properties.Colour=Color.FromArgb(245,247,250)
+            p.Properties.DrawPaths=False;p.Properties.DrawIndices=False;p.Attributes.Bounds=RectangleF(x,y,w,h);return p
+        def component(name,x,y):
+            return add(System.Activator.CreateInstance(assembly.GetType('SpaceVisual.Analyze2D.'+name)),x,y)
+        def layer(name,color,visible=True):
+            l=Rhino.DocObjects.Layer();l.Name=name;l.Color=color;l.IsVisible=visible;model.Layers.Add(l);return model.Layers.Count-1
+        def attrs(index):
+            a=Rhino.DocObjects.ObjectAttributes();a.LayerIndex=index;return a
+        def label(text,x,y,size,li):
+            model.Objects.AddText(Rhino.Display.Text3d(text,Plane(Point3d(x,y,0),Rhino.Geometry.Vector3d.ZAxis),size),attrs(li))
+        panel('BOUNDARY vs SOLID OBSTACLES\n_B: outer analysis extent. _O: internal obstacles.\nClosed _O removes points inside/on it; open _O only blocks lines.\nP / I / R outputs: filtered points / kept indices / removed indices.',30,20,1120,140)
+        report['cases']=[]
+        for k in range(2):
+            y=240+k*360;dx=k*(width+gap)
+            def p3(p):return Point3d(p[0]-minx+dx,p[1]-miny,p[2])
+            points=[p3(p) for p in raw]
+            polys=[PolylineCurve(System.Array[Point3d]([p3(p) for p in poly])) for poly in bounds]
+            outer=add(Param_Curve(),140,y+140);outer.NickName='Outer -> _B';outer.PersistentData.Append(GH_Curve(polys[1]))
+            obstacles=add(Param_Curve(),140,y+80);obstacles.NickName='Open wall segments' if k==0 else 'Closed solid -> _O'
+            if k==0:
+                for p,q in zip(bounds[0][:-1],bounds[0][1:]):obstacles.PersistentData.Append(GH_Curve(LineCurve(p3(p),p3(q))))
+            else:obstacles.PersistentData.Append(GH_Curve(polys[0]))
+            inputs=add(Param_Point(),140,y+20);inputs.NickName='Original candidate points (hidden)'
+            for p in points:inputs.PersistentData.Append(GH_Point(p))
+            graph=component('SV_BuildGraph2D',450,y+75)
+            graph.Params.Input[0].AddSource(inputs);graph.Params.Input[1].AddSource(obstacles);graph.Params.Input[2].AddSource(outer)
+            summary=panel('',660,y,480,55);summary.AddSource(graph.Params.Output[0])
+            lines=add(Param_Curve(),720,y+90,False);lines.NickName='Visible lines';lines.AddSource(graph.Params.Output[1])
+            filtered=add(Param_Point(),720,y+145,False);filtered.NickName='Filtered points';filtered.AddSource(graph.Params.Output[2])
+            metrics=component('SV_VGAMetrics2D',940,y+150);metrics.Params.Input[0].AddSource(graph.Params.Output[0])
+            title='A | Open wall segments: interior points remain' if k==0 else 'B | Closed solid obstacle: interior cleared'
+            panel(title,100,y-65,1040,55)
+            doc.NewSolution(True)
+            errors=list(graph.RuntimeMessages(GH_RuntimeMessageLevel.Error))+list(metrics.RuntimeMessages(GH_RuntimeMessageLevel.Error))
+            if errors:raise Exception(str(errors))
+            g=list(graph.Params.Output[0].VolatileData.AllData(True))[0].Value
+            kept=[v.Value for v in graph.Params.Output[3].VolatileData.AllData(True)]
+            resultlines=[v.ScriptVariable() for v in graph.Params.Output[1].VolatileData.AllData(True)]
+            inside=[i for i,p in enumerate(g.Points) if polys[0].Contains(p,Plane.WorldXY,1e-6)!=Rhino.Geometry.PointContainment.Outside]
+            if k==1 and inside:raise Exception('Solid obstacle still contains graph points')
+            if metrics.Params.Output[4].VolatileDataCount!=len(kept):raise Exception('VGA point order/count mismatch')
+            wi=layer(('A' if k==0 else 'B')+' - boundaries and labels',Color.FromArgb(35,42,50))
+            for c in polys:model.Objects.AddCurve(c,attrs(wi))
+            li=layer(('A' if k==0 else 'B')+' - all sightlines',Color.FromArgb(190,45,40) if k==0 else Color.FromArgb(25,138,93))
+            for line in resultlines:model.Objects.AddLine(line,attrs(li))
+            pi=layer(('A' if k==0 else 'B')+' - graph points (toggle to inspect)',Color.FromArgb(70,70,70),False)
+            for p in g.Points:model.Objects.AddPoint(p,attrs(pi))
+            scale=width/50.0
+            label(title,dx,height+7*scale,1.2*scale,wi)
+            label(str(g.Count)+' graph points | '+str(len(resultlines))+' edges | '+str(len(inside))+' points in obstacle',dx,height+3*scale,0.9*scale,wi)
+            label('Candidate points: '+str(len(raw))+' | removed: '+str(len(raw)-g.Count),dx,-4*scale,0.9*scale,wi)
+            report['cases'].append({'points':g.Count,'removed':len(raw)-g.Count,'edges':len(resultlines),'points_in_obstacle':len(inside),'instance':str(graph.InstanceGuid)})
+        desktop=System.Environment.GetFolderPath(System.Environment.SpecialFolder.DesktopDirectory)
+        basename='SpaceVisual_SolidObstacle_'+datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        ghpath=os.path.join(desktop,basename+'.gh');modelpath=os.path.join(desktop,basename+'.3dm')
+        io=GH_DocumentIO();io.Document=doc
+        if not io.SaveQuiet(ghpath) or not model.Write(modelpath,8):raise Exception('Save failed')
+        report['gh']=ghpath;report['rhino']=modelpath
+        if current:
+            reopened=GH_DocumentIO()
+            if not reopened.Open(ghpath):raise Exception('GH reopen failed')
+            reopened.Document.Enabled=True;reopened.Document.NewSolution(True)
+            for case in report['cases']:
+                node=next(o for o in reopened.Document.Objects if str(o.InstanceGuid)==case['instance'])
+                if node.Params.Output[2].VolatileDataCount!=case['points'] or node.Params.Output[1].VolatileDataCount!=case['edges']:raise Exception('Reopened graph differs')
+            report['reopened_with_registered_build']=True
+            Grasshopper.Instances.DocumentServer.AddDocument(reopened.Document)
+            if Grasshopper.Instances.ActiveCanvas is not None:Grasshopper.Instances.ActiveCanvas.Document=reopened.Document
+        report['passed']=True
+    except:report['error']=traceback.format_exc()
+    finally:
+        if doc is not None:doc.Dispose()
+        with open(os.path.join(out,'solid-obstacle-proof.json'),'w') as f:json.dump(report,f,indent=2)
+Rhino.RhinoApp.InvokeOnUiThread(System.Action(run))

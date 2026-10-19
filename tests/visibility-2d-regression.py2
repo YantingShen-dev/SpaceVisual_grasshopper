@@ -1,0 +1,72 @@
+#! python 2
+# -*- coding: utf-8 -*-
+"""Run in Rhino. Compare installed production and test occlusion behavior."""
+import os, json, traceback
+import clr, System, Rhino
+clr.AddReference('Grasshopper')
+import Grasshopper
+from Rhino.Geometry import Point3d, PolylineCurve, Curve, Vector3d, LineCurve
+from System.Collections.Generic import List
+
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+report = {'rhino': str(Rhino.RhinoApp.Version), 'assemblies': {}}
+
+def polygon(coords):
+    return PolylineCurve(System.Array[Point3d]([Point3d(x, y, 0) for x, y in coords]))
+
+def run_suite(assembly):
+    occluder_type = assembly.GetType('SpaceVisual.Core.Geometry.CurveOccluder')
+    square = polygon([(0,0),(10,0),(10,10),(0,10),(0,0)])
+    concave = polygon([(0,0),(10,0),(10,4),(4,4),(4,10),(0,10),(0,0)])
+    wall = LineCurve(Point3d(5,0,0), Point3d(5,10,0))
+    collinear = LineCurve(Point3d(3,5,0), Point3d(7,5,0))
+    results = []
+    def occluder(curves):
+        items = List[Curve]()
+        for curve in curves: items.Add(curve)
+        return System.Activator.CreateInstance(occluder_type, System.Array[System.Object]([items, 1e-6]))
+    for name, curves, start, end, expected in [
+        ('convex boundary keeps interior sightline', [square], (2,2), (8,2), False),
+        ('concave same-arm sightline remains visible', [concave], (1,7), (3,7), False),
+        ('concave notch crossing is blocked', [concave], (2,8), (8,2), True),
+        ('missing boundary reproduces crossing', [], (2,8), (8,2), False),
+        ('open wall crossing is blocked', [wall], (2,5), (8,5), True),
+        ('endpoint contact alone is not blocked', [wall], (2,5), (5,5), False),
+        ('interior wall overlap is blocked', [collinear], (2,5), (8,5), True),
+        ('wall overlap beyond endpoint is ignored', [collinear], (1,5), (2,5), False),
+    ]:
+        instance = occluder(curves)
+        actual = bool(instance.IsBlocked(Point3d(start[0],start[1],0), Point3d(end[0],end[1],0), 1e-4))
+        results.append({'case':name, 'expected':expected, 'actual':actual, 'pass':actual == expected})
+        if hasattr(instance, 'Dispose'): instance.Dispose()
+    for name, curves, radius, expected_found, expected_distance in [
+        ('ray hits forward wall, not closer rear wall', [square], 20.0, True, 8.0),
+        ('ray ignores walls beyond its radius', [square], 1.0, False, None),
+        ('ray overlap stops at forward wall', [collinear], 10.0, True, 1.0),
+    ]:
+        instance = occluder(curves)
+        found, hit, distance = instance.TryNearestHit(Point3d(2,5,0), Vector3d.XAxis, radius)
+        passed = bool(found) == expected_found and (not expected_found or abs(distance-expected_distance) < 1e-5)
+        results.append({'case':name, 'expected_found':expected_found, 'found':bool(found), 'expected_distance':expected_distance, 'distance':distance if found else None, 'pass':passed})
+        if hasattr(instance, 'Dispose'): instance.Dispose()
+    return {'mvid': str(assembly.ManifestModule.ModuleVersionId), 'passed':all(r['pass'] for r in results), 'cases':results}
+
+def run():
+    try:
+        for assembly in System.AppDomain.CurrentDomain.GetAssemblies():
+            if assembly.GetName().Name in ['SpaceVisual','SpaceVisual.Test']:
+                report['assemblies'][assembly.GetName().Name] = run_suite(assembly)
+        # An isolated byte-loaded assembly verifies the just-built code even if
+        # the running GH session still holds the previous test build. It is not
+        # registered with the component server and cannot replace live nodes.
+        candidate_path = globals().get('SPACEVISUAL_CANDIDATE_PATH', os.path.join(root, 'bin', 'Test', 'SpaceVisual.Test.gha'))
+        candidate = System.Reflection.Assembly.Load(System.IO.File.ReadAllBytes(candidate_path))
+        report['candidate_path'] = candidate_path
+        report['assemblies']['candidate_on_disk'] = run_suite(candidate)
+    except:
+        report['error'] = traceback.format_exc()
+    finally:
+        with open(os.path.join(root, 'bin', 'Test', globals().get('SPACEVISUAL_REPORT_NAME', 'visibility-2d-regression.json')), 'w') as stream:
+            json.dump(report, stream, indent=2)
+
+Rhino.RhinoApp.InvokeOnUiThread(System.Action(run))

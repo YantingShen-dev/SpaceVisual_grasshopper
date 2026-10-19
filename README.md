@@ -6,6 +6,8 @@ Explore what a viewpoint can see, compare spatial visibility across a site, and 
 
 **English** · [简体中文](README.zh-CN.md)
 
+**Version 0.2.0 for Windows:** concave-boundary visibility fixes and automatic removal of points inside solid obstacles. [Release notes and upgrade guide](CHANGELOG.md).
+
 [Download & install](#downloads-and-installation) · [Quick start](#quick-start) · [Components](#components) · [Build from source](#building-from-source)
 
 <p align="center">
@@ -43,8 +45,8 @@ Use **Isovist 3D** to study visibility from analysis points, and **Received Visi
 
 | Platform | Download | Compatibility |
 | --- | --- | --- |
-| Windows | [SpaceVisual.gha](bin/Debug/SpaceVisual.gha) | Original Windows Debug build; targets Rhino 7 (SR0+) and Rhino 8 |
-| Mac | [SpaceVisual.gha](bin/Mac/Release/SpaceVisual.gha) | Separate Rhino 7 build; local use confirmed on Intel Mac / Rhino 7.8 |
+| Windows 0.2.0 | [SpaceVisual.gha](bin/Release/SpaceVisual.gha) · [Release assets](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.0) | Production Release build; targets Rhino 7 (SR0+) and Rhino 8; verified in Rhino 8 |
+| Mac 0.1.0 (legacy) | [SpaceVisual.gha](bin/Mac/Release/SpaceVisual.gha) | Previous separate Rhino 7 build; confirmed on Intel Mac / Rhino 7.8; does **not** contain the 0.2.0 fixes |
 
 **Mac compatibility:** Rhino 8 for Mac, Apple Silicon, and Rhino 7.0–7.7 have not been verified.
 
@@ -73,6 +75,8 @@ The usual Rhino 7 for Mac components folder is:
 
 Keep only one Space Visual installation in Libraries. Move older versions outside the folder before installing: the Windows and Mac builds share component GUIDs.
 
+For upgrades, also check Rhino PackageManager for another installed copy. Remove the temporary **Space Visual test** plugin after converting test definitions to production components; the two editions' custom Graph and Parameter types cannot be mixed. The legacy Windows download path `bin/Debug/SpaceVisual.gha` is also updated to the same 0.2.0 production binary for existing links.
+
 See [MAC-TESTING.md](MAC-TESTING.md) for the Chinese Mac installation guide and functional test checklist.
 
 ## Quick start
@@ -81,11 +85,15 @@ See [MAC-TESTING.md](MAC-TESTING.md) for the Chinese Mac installation guide and 
 
 1. Create a closed planar boundary and coplanar obstacle curves.
 2. Connect the boundary to **View Grid**. Its `M` output is the analysis mesh; `P` contains one point per mesh face.
-3. Connect `P` to **Build Graph 2D → Points**, and the obstacle curves to `_Obstacles`.
+3. Connect grid `P` to **Build Graph 2D → Points**, the **outer boundary** to `_Boundary` (`_B`), and **internal obstacles** to `_Obstacles` (`_O`). Closed obstacles remove points inside/on them before graph construction; open walls only block sightlines. Points outside all boundaries are also removed. View Grid does not pass boundary curves through its Points output.
 4. Connect the resulting `Graph` to **VGA Metrics 2D**. Start with `Connectivity`, the number of directly visible neighbors.
-5. Connect the grid mesh to **Colorize → Mesh** and the metric values to `Values 0`. Optionally connect **Parameter** to set the palette and legend.
+5. Keep only the grid faces listed by Graph2D's **Kept Indices** (`I`), preserving their order, and connect that mesh to **Colorize → Mesh** with the compact metric values at `Values 0`. Optionally connect **Parameter** to set the palette and legend. If no points were removed, the original grid mesh can be used directly.
 
-Preserve point/value order so each result maps to the correct mesh face. For an interior with solid obstacles, exclude sample points inside those obstacles before building the graph, and keep the display mesh aligned with the remaining points.
+Use native components for the mesh selection: **Deconstruct Mesh** → faces into **List Item**, with Graph2D `I` as the indices → selected faces and the original vertices into **Construct Mesh** → **Colorize**.
+
+Graph2D's **Filtered Points** (`P`), graph nodes and VGA values share the same compact order. **Removed Indices** (`R`) identifies rejected input points. Hide the original grid/point preview to see only the filtered points; downstream components cannot hide previews upstream. The face-index correspondence above applies to **View Grid**, which emits one face-center point per face. **View Grid Triangle** uses vertex samples for curve inputs, but face centers for mesh/surface/Brep inputs; match the relevant correspondence when filtering its display mesh. Filtering sample points does not geometrically trim a mesh at obstacle outlines.
+
+For older definitions that merged outer and inner curves into `_O`, move the outer curves to `_B`. Closed `_O` curves now mean solid exclusion regions, including nested curves; they are not interpreted as outer room boundaries. All points and curves must lie in the same XY plane. If an older saved component does not expose `_B`, place a fresh Build Graph 2D and reconnect it.
 
 ### Try another question
 

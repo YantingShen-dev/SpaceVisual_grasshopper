@@ -23,7 +23,7 @@ namespace SpaceVisual.Analyze2D
             subCategory: Constants.SubCategory.Analyze2D)
         { }
 
-        public override Guid ComponentGuid => new Guid("f4a7b8e2-6c91-4d05-bcad-3e8a2f7d9106");
+        public override Guid ComponentGuid => PluginIdentity.For(new Guid("f4a7b8e2-6c91-4d05-bcad-3e8a2f7d9106"));
 
         public override GH_Exposure Exposure => GH_Exposure.primary;
 

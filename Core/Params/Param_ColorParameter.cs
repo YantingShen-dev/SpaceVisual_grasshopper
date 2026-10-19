@@ -12,7 +12,7 @@ namespace SpaceVisual.Core.Params
             Constants.Category, "Params")
         { }
 
-        public override Guid ComponentGuid => new Guid("d5e9b3a2-7f48-4c10-bd62-3a8e1f7c0269");
+        public override Guid ComponentGuid => PluginIdentity.For(new Guid("d5e9b3a2-7f48-4c10-bd62-3a8e1f7c0269"));
 
         public override GH_Exposure Exposure => GH_Exposure.hidden;
 

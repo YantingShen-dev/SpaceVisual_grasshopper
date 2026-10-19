@@ -10,7 +10,7 @@ namespace SpaceVisual.Core.Geometry
     /// RTree over per-curve bounding boxes for fast Line-Curve queries.
     /// Used by SV_BuildGraph2D and SV_Isovist2D.
     /// </summary>
-    public sealed class CurveOccluder
+    public sealed class CurveOccluder : IDisposable
     {
         private readonly Curve[] _curves;
         private readonly RTree _tree;
@@ -57,16 +57,26 @@ namespace SpaceVisual.Core.Geometry
             _tree.Search(searchBox, (sender, e) => candidates.Add(e.Id));
             if (candidates.Count == 0) return false;
 
-            var line = new Line(from, to);
+            // CurveLine intersects an INFINITE line, including walls behind the
+            // endpoints. A finite curve keeps interior room sightlines visible.
+            using var segment = new LineCurve(from, to);
             foreach (var i in candidates)
             {
-                var ix = Intersection.CurveLine(_curves[i], line, _tolerance, _tolerance);
+                using var ix = Intersection.CurveCurve(_curves[i], segment, _tolerance, _tolerance);
                 if (ix == null || ix.Count == 0) continue;
 
                 for (int j = 0; j < ix.Count; j++)
                 {
                     var evt = ix[j];
-                    if (!evt.IsPoint) return true; // overlap counts as blocked
+                    if (evt.IsOverlap)
+                    {
+                        double start = from.DistanceTo(segment.PointAt(evt.OverlapB.Min));
+                        double end = from.DistanceTo(segment.PointAt(evt.OverlapB.Max));
+                        if (Math.Min(end, len - endpointEpsilon) > Math.Max(start, endpointEpsilon))
+                            return true;
+                        continue;
+                    }
+                    if (!evt.IsPoint) continue;
 
                     var p = evt.PointB;
                     if (p.DistanceTo(from) > endpointEpsilon &&
@@ -94,7 +104,7 @@ namespace SpaceVisual.Core.Geometry
             if (!d.Unitize()) return false;
 
             var end = origin + d * maxDistance;
-            var rayLine = new Line(origin, end);
+            using var raySegment = new LineCurve(origin, end);
 
             var searchBox = new BoundingBox(new[] { origin, end });
             searchBox.Inflate(_tolerance);
@@ -106,16 +116,17 @@ namespace SpaceVisual.Core.Geometry
             bool found = false;
             foreach (var i in candidates)
             {
-                var ix = Intersection.CurveLine(_curves[i], rayLine, _tolerance, _tolerance);
+                using var ix = Intersection.CurveCurve(_curves[i], raySegment, _tolerance, _tolerance);
                 if (ix == null || ix.Count == 0) continue;
 
                 for (int k = 0; k < ix.Count; k++)
                 {
                     var evt = ix[k];
-                    if (!evt.IsPoint) continue;
-                    var p = evt.PointB;
+                    if (!evt.IsPoint && !evt.IsOverlap) continue;
+                    // The finite segment's increasing domain follows the ray.
+                    var p = evt.IsOverlap ? raySegment.PointAt(evt.OverlapB.Min) : evt.PointB;
                     double r = p.DistanceTo(origin);
-                    if (r > 1e-9 && r < distance)
+                    if ((evt.IsOverlap || r > 1e-9) && r <= maxDistance && r < distance)
                     {
                         distance = r;
                         hit = p;
@@ -125,5 +136,8 @@ namespace SpaceVisual.Core.Geometry
             }
             return found;
         }
+
+        /// <summary>Release the native spatial index; input curves remain caller-owned.</summary>
+        public void Dispose() => _tree.Dispose();
     }
 }
