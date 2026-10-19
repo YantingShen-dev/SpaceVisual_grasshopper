@@ -7,7 +7,7 @@ using Rhino.Geometry;
 namespace SpaceVisual.Core.Params
 {
     /// <summary>A point with optional grid-cell corners, carried with the data, not a global cache.</summary>
-    public sealed class GH_GridPoint : GH_GeometricGoo<Point3d>, IGH_PreviewData
+    public sealed class GH_GridPoint : GH_GeometricGoo<Point3d>, IGH_PreviewData, IGH_Goo
     {
         public Point3d[]? Corners { get; private set; }
         public bool HasCell => Corners != null && (Corners.Length == 3 || Corners.Length == 4);
@@ -68,6 +68,13 @@ namespace SpaceVisual.Core.Params
             if (typeof(Q) == typeof(Point3d)) { target = (Q)(object)Value; return true; }
             if (typeof(Q) == typeof(GH_Point)) { target = (Q)(object)new GH_Point(Value); return true; }
             return new GH_Point(Value).CastTo(out target);
+        }
+        // Grasshopper consumers cast through IGH_Goo's out overload. Explicitly
+        // route that interface call to our conversion rather than the base goo.
+        bool IGH_Goo.CastTo<Q>(out Q target)
+        {
+            target = default!;
+            return CastTo(ref target);
         }
         public override object ScriptVariable() => Value;
         public override bool Write(GH_IWriter writer)

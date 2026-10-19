@@ -24,7 +24,7 @@ compiler = a.compiler.resolve()
 for required in [compiler, mono / 'bin/mono', api / 'mscorlib.dll', resources / 'RhinoCommon.dll', gh / 'Grasshopper.dll']:
     if not required.exists():
         p.error('Missing: ' + str(required))
-out = root / 'bin/Mac/Release'
+out = root / 'artifacts/mac/Release'
 obj = root / 'obj/Mac'
 out.mkdir(parents=True, exist_ok=True)
 obj.mkdir(parents=True, exist_ok=True)
@@ -33,7 +33,7 @@ meta = obj / 'AssemblyInfo.cs'
 meta.write_text('\n'.join('[assembly: System.Reflection.%s(%s)]' % (attr, json.dumps(project.findtext('.//' + prop))) for attr, prop in [('AssemblyVersion', 'AssemblyVersion'), ('AssemblyFileVersion', 'FileVersion'), ('AssemblyTitle', 'Title'), ('AssemblyCompany', 'Company'), ('AssemblyCopyright', 'Copyright')]) + '\n[assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]\n')
 refs = [api / (name + '.dll') for name in ['mscorlib', 'System', 'System.Core', 'System.Drawing', 'System.Windows.Forms']]
 refs += [resources / 'RhinoCommon.dll', gh / 'Grasshopper.dll', gh / 'GH_IO.dll']
-sources = sorted(f for f in root.rglob('*.cs') if not set(f.relative_to(root).parts).intersection({'bin', 'obj', 'tests'}))
+sources = sorted(f for f in root.rglob('*.cs') if not set(f.relative_to(root).parts).intersection({'bin', 'obj', 'tests', 'artifacts'}))
 args = ['-nologo', '-target:library', '-platform:anycpu', '-langversion:12', '-nullable:enable', '-optimize+', '-deterministic+', '-nostdlib+', '-out:' + str(out / 'SpaceVisual.gha')]
 args += ['-reference:' + str(f) for f in refs]
 args += ['-resource:' + str(f) + ',icons.' + f.name for f in sorted((root / 'icon').glob('*.png'))]

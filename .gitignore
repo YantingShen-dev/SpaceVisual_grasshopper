@@ -10,3 +10,10 @@ bin/Release/*
 # Generated development reports and examples
 artifacts/
 __pycache__/
+
+# Current Mac distribution; candidates remain under artifacts/
+!bin/Mac/
+bin/Mac/*
+!bin/Mac/Release/
+bin/Mac/Release/*
+!bin/Mac/Release/SpaceVisual_0.2.3_Mac.gha

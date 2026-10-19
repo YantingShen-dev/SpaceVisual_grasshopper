@@ -11,7 +11,8 @@ The current Windows release is **0.2.3**. Obsolete compiled plugins and binary b
 | `dist/0.2.3/` | Local release assets: GHA, ZIP, Yak, checksums and release notes / 当前发布文件 |
 | `scripts/release/` | Package the production release / 正式版打包工具 |
 | `scripts/development/` | Optional separate test build and Rhino example tools / 按需使用的测试版构建及示例工具 |
-| `scripts/mac/` | Mac source-build and smoke-test tools; no Mac binary distributed / Mac 源码构建工具，无已发布二进制 |
+| `scripts/mac/` | Mac source-build and smoke-test tools / Mac 源码构建与检查工具 |
+| `bin/Mac/Release/SpaceVisual_0.2.3_Mac.gha` | Mac Rhino 7 build; point fix tested locally by author / Mac 构建，Points 修复已由作者本地测试 |
 | `tests/regression/` | Current 2D visibility and point-filter regression checks / 当前功能回归检查 |
 | `tests/mac/` | Mac managed smoke-test source / Mac 基础测试源码 |
 | `artifacts/validation/` | Generated reports and local test examples, created only when tools run / 运行工具时生成的报告和示例 |
@@ -21,9 +22,9 @@ The current Windows release is **0.2.3**. Obsolete compiled plugins and binary b
 
 ## Generated files
 
-`obj/` is disposable compiler cache. It has been cleared and will be recreated by a build. It is never an installation folder. `bin/Test/`, `bin/Debug/` and `bin/Mac/` are generated only when those configurations are explicitly built; they are ignored by Git. Test installation replaces the previous test binary directly without accumulating backups.
+`obj/` is disposable compiler cache. It has been cleared and will be recreated by a build. It is never an installation folder. `bin/Test/` and `bin/Debug/` are ignored by Git. Mac candidates and reports are generated under `artifacts/mac/`; only the current labeled Mac distribution in `bin/Mac/Release/` is committed. Test installation replaces the previous test binary directly without accumulating backups.
 
-`obj/` 是已清理的编译缓存，重新构建时会自动生成。开发构建可能生成 `bin/Test`、`bin/Debug` 或 `bin/Mac`；这些路径与正式版 `bin/Release` 分开，且不上传 GitHub。测试安装会直接替换上一次测试二进制，不再累积备份。
+`obj/` 是已清理的编译缓存，重新构建时会自动生成。开发构建可能生成 `bin/Test`、`bin/Debug`；这些目录不上传 GitHub。Mac 候选与报告保存在 `artifacts/mac/`，只提交 `bin/Mac/Release/` 中当前标明 Mac 的分发文件。测试安装会直接替换上一次测试二进制，不再累积备份。
 
 Release packaging uses temporary files under `artifacts/packaging/` and removes its staging directory when finished. It refuses to overwrite existing release assets, preserving published checksums. `dist/` and `artifacts/` are local generated outputs and are ignored by Git; public packages are on [GitHub Releases](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases).
 

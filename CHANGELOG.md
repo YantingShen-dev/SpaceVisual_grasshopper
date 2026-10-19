@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.3 — Mac point conversion fix
+
+- Fixed `GH_GridPoint` conversion through `IGH_Goo.CastTo`, allowing the grid Points output to convert to native Grasshopper point data. Grid-cell and topology metadata remain available on direct Space Visual connections.
+- The author tested the corrected build in Rhino on Intel Mac / Rhino 7.8 and confirmed it works. The Mac download is byte-identical to that tested candidate. Native Point-parameter conversion and coordinate preservation also pass the managed regression checks.
+- The existing Windows 0.2.3 binary has not been rebuilt with this source fix.
+
+## 0.2.3 — Mac build
+
+- Added `bin/Mac/Release/SpaceVisual_0.2.3_Mac.gha`, compiled against Rhino 7.8 for Mac with the stable production assembly identity and GUIDs. The Windows binary is unchanged.
+- Mac build candidates and reports now use `artifacts/mac/`; the managed smoke runner can verify the renamed distribution with `--assembly`.
+- Compilation and Mono managed checks passed, followed by author testing of the point-conversion fix on Intel Mac / Rhino 7.8. Exhaustive native geometry/viewport coverage, Rhino 8 for Mac and Apple Silicon validation remain pending.
+
 ## 0.2.3 — 2026-10-20
 
 - Restored View Grid outputs to Mesh and Points; removed Cells. Points retain per-cell geometry for downstream meshes.

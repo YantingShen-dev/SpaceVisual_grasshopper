@@ -48,20 +48,21 @@
 | 平台 | 下载 | 兼容说明 |
 | --- | --- | --- |
 | Windows 0.2.3 | [SpaceVisual_0.2.3.gha](bin/Release/SpaceVisual_0.2.3.gha) · [发布下载](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.3) | 正式 Release 构建，目标支持 Rhino 7（SR0+）与 Rhino 8；0.2.3 的自动化 Rhino 运行回归尚未完成 |
+| Mac 0.2.3 — Rhino 7 | [SpaceVisual_0.2.3_Mac.gha](bin/Mac/Release/SpaceVisual_0.2.3_Mac.gha) | 使用 Mac Rhino 7.8 SDK 编译；AnyCPU / net48 / Mono；托管检查通过；作者已在 Intel Mac / Rhino 7.8 中测试 Points 修复版可用 |
 
-目前只提供 Windows 正式版 `.gha`。旧 Mac 0.1.0 二进制已移除；新版 Mac 需要重新构建并验证后再发布。
+Mac 文件名带有 `_Mac` 标记。Rhino 8 for Mac、Apple Silicon 和 Rhino 7.0–7.7 尚未验证，当前确认的是作者本地测试可用，并非所有组件和场景均已逐项验收。
 
 1. 点击对应平台的文件链接，再点击 GitHub 的 **Download raw file**。
 2. Windows 用户右键文件 → **属性 → 解除锁定**（若显示此选项）。
 3. 在 Grasshopper 中打开 **File → Special Folders → Components Folder**。
-4. 退出 Rhino，把 `SpaceVisual_0.2.3.gha` 复制到该文件夹。
+4. 退出 Rhino，把对应平台的 `.gha` 复制到该文件夹（Mac 文件为 `SpaceVisual_0.2.3_Mac.gha`）。
 5. 重启 Rhino 与 Grasshopper，找到 **Space Visual** 标签页。
 
 Windows 常用目录为 `%APPDATA%\Grasshopper\Libraries\`。Mac 请以 Grasshopper 打开的目录为准，详细路径与验证清单见 [Mac 安装说明](MAC-TESTING.md)。
 
 只保留一份 Space Visual；关闭 Rhino 后移除旧版，避免重复组件。
 
-本次 Windows 正式版为 **0.2.3**，升级步骤见 [更新记录](CHANGELOG.md)。同时检查 Rhino PackageManager 中是否另有旧版。临时测试版定义需要换成正式组件，再移除 **Space Visual test** 插件；两个版本的自定义 Graph、Parameter 类型不能混接。仓库仅保留 `bin/Release/SpaceVisual_0.2.3.gha`，不再提供 Debug、旧 Mac 或测试版二进制。
+本次 Windows 正式版为 **0.2.3**，升级步骤见 [更新记录](CHANGELOG.md)。同时检查 Rhino PackageManager 中是否另有旧版。临时测试版定义需要换成正式组件，再移除 **Space Visual test** 插件；两个版本的自定义 Graph、Parameter 类型不能混接。Windows 下载为 `bin/Release/SpaceVisual_0.2.3.gha`，Mac 下载为 `bin/Mac/Release/SpaceVisual_0.2.3_Mac.gha`。两者内部程序集名称和组件 GUID 相同，只能安装一份；不再提供 Debug、旧 Mac 0.1.0 或测试版二进制。
 
 ## 快速开始
 

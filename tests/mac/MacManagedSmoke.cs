@@ -5,6 +5,8 @@ using System.Drawing;
 using Rhino.Geometry;
 using Grasshopper.Kernel;
 using SpaceVisual.Core.Graph;
+using SpaceVisual.Core.Params;
+using Grasshopper.Kernel.Types;
 using SpaceVisual.Core.Visual;
 class MacManagedSmoke
 {
@@ -12,9 +14,19 @@ class MacManagedSmoke
     static void Main()
     {
         var asm = typeof(VisibilityGraph).Assembly;
+        Check(asm.GetName().Name == "SpaceVisual", "Stable production assembly identity");
+        Check(asm.GetName().Version == new Version(0,2,3,0), "Version 0.2.3.0");
         Check(asm.GetName().ProcessorArchitecture == ProcessorArchitecture.MSIL, "AnyCPU assembly");
         Check(asm.GetTypes().Count(t => !t.IsAbstract && typeof(GH_Component).IsAssignableFrom(t)) == 11, "All 11 component types resolve against Mac Rhino/Grasshopper");
         Check(asm.GetManifestResourceNames().Count(n => n.EndsWith(".png")) == 12, "12 embedded icons");
+        var gridPoint = new GH_GridPoint(new Point3d(1,2,3));
+        GH_Point converted;
+        Check(((IGH_Goo)gridPoint).CastTo(out converted) && converted.Value == gridPoint.Value, "Grid point converts through IGH_Goo to native GH_Point");
+        Point3d rawPoint;
+        Check(((IGH_Goo)gridPoint).CastTo(out rawPoint) && rawPoint == gridPoint.Value, "Grid point converts through IGH_Goo to Point3d");
+        var pointParam = new Grasshopper.Kernel.Parameters.Param_Point();
+        Check(pointParam.AddVolatileData(new Grasshopper.Kernel.Data.GH_Path(0), 0, gridPoint), "Native Point parameter accepts grid-point output");
+        Check(((GH_Point)pointParam.VolatileData.get_Branch(0)[0]).Value == gridPoint.Value, "Native Point parameter preserves coordinates");
         var graph = new VisibilityGraph(new[]{new Point3d(0,0,0),new Point3d(1,0,0),new Point3d(2,0,0),new Point3d(8,0,0)}, new[]{new[]{1},new[]{0,2},new[]{1},new int[0]});
         Check(BFS.FromSource(graph,0).SequenceEqual(new[]{0,1,2,-1}), "BFS connected and disconnected nodes");
         var matrix = BFS.AllPairs(graph);

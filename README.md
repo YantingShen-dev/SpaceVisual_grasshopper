@@ -50,10 +50,11 @@ Use **Isovist 3D** to study visibility from analysis points, and **Received Visi
 | Platform | Download | Compatibility |
 | --- | --- | --- |
 | Windows 0.2.3 | [SpaceVisual_0.2.3.gha](bin/Release/SpaceVisual_0.2.3.gha) · [Release assets](https://github.com/YantingShen-dev/SpaceVisual_grasshopper/releases/tag/v0.2.3) | Production Release build; targets Rhino 7 (SR0+) and Rhino 8; automated Rhino runtime regression for 0.2.3 remains pending |
+| Mac 0.2.3 — Rhino 7 | [SpaceVisual_0.2.3_Mac.gha](bin/Mac/Release/SpaceVisual_0.2.3_Mac.gha) | Built against Rhino 7.8 for Mac, AnyCPU / net48 / Mono; managed checks pass; author tested the point-conversion fix locally on Intel Mac / Rhino 7.8 |
 
-**Mac:** no current binary is distributed. The old 0.1.0 download has been removed; a new Mac build needs runtime validation before publication.
+The Mac download is a separate build of the production source. Rhino 8 for Mac, Apple Silicon, and Rhino 7.0–7.7 are not verified. The author confirmed this corrected 0.2.3 Mac build works locally; this is not a claim of exhaustive testing of every component.
 
-Open `SpaceVisual_0.2.3.gha` above and click GitHub's **Download raw file** button. Only the `.gha` is needed.
+Open the appropriate Windows or Mac `.gha` above and click GitHub's **Download raw file** button. Only the `.gha` is needed.
 
 ### Windows
 
@@ -65,9 +66,11 @@ Open `SpaceVisual_0.2.3.gha` above and click GitHub's **Download raw file** butt
 
 Keep only one Space Visual installation. Close Rhino and remove older copies before installing.
 
-For upgrades, also check Rhino PackageManager for another installed copy. Remove the temporary **Space Visual test** plugin after converting test definitions to production components; the two editions' custom Graph and Parameter types cannot be mixed. `bin/Release/SpaceVisual_0.2.3.gha` is the sole checked-in plugin binary. Old Debug, Mac and test binaries are no longer distributed.
+For upgrades, also check Rhino PackageManager for another installed copy. Remove the temporary **Space Visual test** plugin after converting test definitions to production components; the two editions' custom Graph and Parameter types cannot be mixed. Current downloads are the Windows binary in `bin/Release/` and the clearly labeled Mac binary in `bin/Mac/Release/`. Install only one: both retain the same production assembly identity and component GUIDs. Old Debug, Mac 0.1.0 and test binaries are not distributed.
 
-See [MAC-TESTING.md](MAC-TESTING.md) for the Mac build and validation checklist.
+### Mac — Rhino 7
+
+Download `SpaceVisual_0.2.3_Mac.gha`, open Grasshopper **File → Special Folders → Components Folder**, then quit Rhino and place the file there. Move older Space Visual copies outside the Libraries folder first. Restart Rhino and Grasshopper. See [MAC-TESTING.md](MAC-TESTING.md) for the path, build commands and validation checklist.
 
 ## Quick start
 
@@ -168,15 +171,15 @@ python3 scripts/mac/test-mac.py --compiler /absolute/path/to/tasks/net472/csc.ex
 
 Both scripts default to `/Applications/Rhino 7.app`; use `--rhino "/path/to/Rhino 7.app"` for another location. No system .NET installation is required. The build script uses the installed Mac Rhino/Grasshopper SDK; compatibility with older service releases must be tested separately.
 
-Output: **`bin/Mac/Release/SpaceVisual.gha`**. Local build metadata and managed test results are generated alongside it but are not committed. The scripts do not install the plugin or publish it.
+Local candidate: **`artifacts/mac/Release/SpaceVisual.gha`** with `build-info.json`; test reports are under `artifacts/mac/tests/`. These files are ignored by Git. The checked-in Mac copy is **`bin/Mac/Release/SpaceVisual_0.2.3_Mac.gha`**. The filename carries the platform label; its internal assembly name stays `SpaceVisual`. The scripts do not install the plugin or publish it.
 
 ### Validation
 
-The previous Mac build was tested locally on Intel Mac / Rhino 7.8. That does not validate the current source on Mac. Run the managed checks and the [Rhino test checklist](MAC-TESTING.md) before publishing a new Mac build.
+Mac 0.2.3 compiles against the installed Rhino 7.8 SDK. Managed checks cover the production assembly identity, version, all 11 component types, 12 icon resources, graph traversal, priority queue and gradient values. Regression checks also verify conversion of grid points through `IGH_Goo` and acceptance by the native Point parameter with unchanged coordinates. The author tested the corrected build in Rhino on Intel Mac / Rhino 7.8 and confirmed it works. The [Rhino test checklist](MAC-TESTING.md) remains available for broader coverage.
 
 ## Distribution
 
-Distribute the current Windows `.gha` from `bin/Release/` or the GitHub release assets. No Mac binary is currently distributed. Publishing to food4Rhino remains a manual step.
+Use `bin/Release/SpaceVisual_0.2.3.gha` for Windows and `bin/Mac/Release/SpaceVisual_0.2.3_Mac.gha` for the Mac build. The Mac binary is available in the repository; existing release assets have not been changed. Publishing to food4Rhino remains a manual step.
 
 ---
 
